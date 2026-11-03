@@ -1,0 +1,6 @@
+<settings>
+    <setting propertyKey="@Properties.routeString" title="@Strings.RouteStringTitle" prompt="@Strings.RouteStringPrompt">
+        <settingConfig type="alphaNumeric" maxLength="2048" />
+    </setting>
+</settings>
+

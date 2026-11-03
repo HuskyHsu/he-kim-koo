@@ -1,0 +1,9 @@
+<strings>
+    <string id="AppName">He-Kim-Koo (Route Field)</string>
+    <string id="RouteStringTitle">Route String (Polyline)</string>
+    <string id="RouteStringPrompt">Paste the encoded Google Polyline string generated from the web converter</string>
+    <string id="NoRoute">NO ROUTE</string>
+    <string id="PasteSettings">PASTE IN APP SETTINGS</string>
+    <string id="WaitingGps">WAITING FOR GPS</string>
+    <string id="OffCourse">OFF COURSE</string>
+</strings>

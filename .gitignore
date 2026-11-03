@@ -1,0 +1,22 @@
+# Garmin CIQ Developer Keys (Keep private, do not commit)
+developer_key*
+*.der
+*.key
+
+# Garmin CIQ Build Artifacts
+bin/
+gen/
+mir/
+internal-mir/
+*.prg
+*.prg.debug.xml
+*.iq
+*-settings.json
+
+# System & Editor temporary files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
