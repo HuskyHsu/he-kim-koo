@@ -47,25 +47,31 @@ Inspired by the bioluminescence of fireflies (*he-kim-koo* in Taiwanese), this p
 
 ---
 
-### Step 2: Build Project in VS Code
+### Step 2: Build Project
 
-#### Prerequisites:
+You can compile using either the automated CLI scripts or directly within VS Code:
 
-- Install [Visual Studio Code](https://code.visualstudio.com/).
-- Install the **Monkey C** extension from the VS Code Marketplace.
-- Press `Cmd + Shift + P` (macOS) or `Ctrl + Shift + P` (Windows), then run `Monkey C: Verify Installation` and `Monkey C: Download Connect IQ SDK` (SDK 4.2.0+ recommended).
-- Generate a developer key via `Monkey C: Generate a Developer Key` (saved as `developer_key`).
-- Install Java Runtime Environment (e.g. `brew install --cask temurin` on macOS).
+#### Method A: Automated One-Click Command (Recommended)
 
-#### Compile `.prg` for Device:
+Run via terminal or `make`:
 
-1. Open this repository folder in VS Code.
-2. Press `Cmd + Shift + P` and execute:
-   ```
-   Monkey C: Build for Device
-   ```
-3. Select **Venu 2 Plus** (`venu2plus`).
-4. Upon completion, `hekimkoo.prg` is generated in the project root (or `bin/` directory).
+```bash
+# 1. Build .prg for direct USB sideload to watch
+make prg        # or: ./scripts/build.sh prg
+
+# 2. Build .iq package for Connect IQ Store Beta release
+make iq         # or: ./scripts/build.sh iq
+
+# 3. Build both at once
+make all        # or: ./scripts/build.sh all
+```
+
+*The script automatically detects your installed Connect IQ SDK, configures Java, and auto-generates `developer_key.der` if you don't already have one.*
+
+#### Method B: VS Code Tasks
+
+1. In VS Code / Antigravity IDE, press `Cmd + Shift + B`.
+2. Select **"Build All (.prg & .iq)"**, **"Build .prg (USB Sideload to Watch)"**, or **"Build .iq (Connect IQ Store Beta)"**.
 
 ---
 
@@ -74,17 +80,17 @@ Inspired by the bioluminescence of fireflies (*he-kim-koo* in Taiwanese), this p
 #### Option A: USB Sideload (Fastest for local testing)
 
 1. **Connect Watch**:
-   - **macOS**: Since Garmin watches use MTP mode, install and open [OpenMTP](https://openmtp.ganeshrp.com/) or Android File Transfer.
+   - **macOS**: Since Garmin watches use MTP mode, open [OpenMTP](https://openmtp.ganeshrp.com/) or Android File Transfer.
    - **Windows**: The watch appears directly in File Explorer as a storage device.
 2. **Transfer Binary**:
-   - Copy `hekimkoo.prg` into the watch's **`/GARMIN/APPS/`** folder.
+   - Copy `bin/hekimkoo.prg` into the watch's **`/GARMIN/APPS/`** folder.
 3. **Eject & Disconnect** the USB cable.
 
 #### Option B: Wireless Install via Garmin Connect IQ Store (Beta Release)
 
-1. In VS Code, press `Cmd + Shift + P` ➔ **`Monkey C: Export Project`** to generate `hekimkoo.iq`.
+1. Build `bin/hekimkoo.iq` via `make iq` or `./scripts/build.sh iq`.
 2. Visit the [Garmin Connect IQ Developer Dashboard](https://apps.garmin.com/developer/dashboard) and sign in.
-3. Click **"Upload an App"**, select `hekimkoo.iq`, and check **"This is a Beta app"** (private to your account, no public review required).
+3. Click **"Upload an App"**, select `bin/hekimkoo.iq`, and check **"This is a Beta app"** (private to your account, no public review required).
 4. Open the **Connect IQ Store** app on your phone, navigate to your device, and tap **"Install"** to transfer wirelessly over Bluetooth!
 
 ---
@@ -101,7 +107,7 @@ Inspired by the bioluminescence of fireflies (*he-kim-koo* in Taiwanese), this p
    - Open the **Garmin Connect** mobile app ➔ Tap the watch icon (**Venu 2 Plus**).
    - Tap **Activities, Apps & More** ➔ **Data Fields**.
    - Tap **He-Kim-Koo (Route Field)** ➔ **Settings**.
-   - Paste the copied Polyline string into the **Route String** field and tap Save.
+   - Paste the copied Polyline string into **Route String**, optionally adjust **Map View Range (Meters)** (50 - 1000m, default: 175m), and tap Save.
    - The watch immediately loads and displays your GPS art with live navigation!
 
 ---
@@ -110,14 +116,14 @@ Inspired by the bioluminescence of fireflies (*he-kim-koo* in Taiwanese), this p
 
 | Feature | Description |
 | :--- | :--- |
-| **Bioluminescent Night Theme (Plan A)** | AMOLED deep black background, Electric Cyan (4px) upcoming route, Warm Golden Amber (4px) completed route, and a cold lime-green GPS chevron cursor with crisp white border. |
-| **Geometry Artwork Completion** | As the runner progresses, completed segments dynamically shift from cyan to warm golden amber with node dots, visualizing the completed art without confusing overlaps. |
+| **Bioluminescent Night Theme (Plan A)** | AMOLED deep black background, uniform Electric Cyan (4px) route blueprint, and a cold lime-green GPS chevron cursor with crisp white border. |
+| **Directional Chevrons (50m / 250m Gauge)** | Chevrons in Electric Cyan: subtle small `>` every 50m, prominent bold large single `>` every 250m (multiples of 250m distance ruler). Supports **Forward / Reverse** direction inversion in settings. |
+| **Configurable Map View Range** | User-adjustable viewport radius from 50m to 1000m (default: 175m) in app settings, providing custom zoom scales for tight urban routes or wide trail runs. |
 | **Comet Stream & 20m Milestone Sparks** | 80-point silky comet trail paired with **20-meter ground-locked milestone sparks (10 dots covering 200m)**. Sparks remain stationary in world coordinates and fade in place, providing an instant distance gauge. |
+| **Speed-Aware Dynamic Heading** | Prioritizes GPS ground course (`info.track`) when running (`speed > 0.8 m/s`) to guarantee forward alignment regardless of wrist angle, smoothly falling back to the 3-axis electronic compass when stationary. |
 | **Angular Exponential Smoothing** | Slerp-like angular smoothing filter with $[-\pi, +\pi]$ circular wrapping eliminates sudden perspective snapping during sharp turns or screen toggles. |
 | **Flat Microdegree Integer Array** | Replaces multi-dimensional object arrays with a flat `Array<Number>` ($10^{-5}$ deg, 32-bit integers). A 120-point route consumes $< 1\text{KB}$ heap space, preventing OOM. |
-| **Heading-Up with Compass Fusion** | Combines `info.currentHeading` with the physical 3-axis electronic compass: rotates with motion while running, and aligns with wrist orientation when stationary. |
-| **Viewport Culling** | Automatically skips 2D matrix calculation and drawing for segments outside the 220m viewport radius, conserving CPU cycles and AMOLED battery life. |
-| **Progress-Aware Search Window** | Constrains local nearest-point search to `[mProgressIdx - 2, mProgressIdx + 5]`, solving false snapping on intersecting loops and out-and-back tracks. |
+| **Dynamic Viewport Culling** | Automatically skips 2D matrix calculation and drawing for segments outside `mapRange * 1.30`, conserving CPU cycles and AMOLED battery life. |
 | **Real-Time Off-Course Alert** | Displays a high-contrast red alert banner `OFF COURSE (+XXm)` at the top of the screen whenever Cross-Track Distance exceeds 35 meters. |
 
 ---

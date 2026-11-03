@@ -1,4 +1,6 @@
 <properties>
     <property id="routeString" type="string"></property>
+    <property id="mapRange" type="number">175</property>
+    <property id="routeDirection" type="number">0</property>
 </properties>
 

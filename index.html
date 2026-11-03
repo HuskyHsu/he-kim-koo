@@ -1,549 +1,697 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>🪲 He-Kim-Koo - Garmin GPS Breadcrumb Art Route Converter</title>
     <style>
-        :root {
-            --bg-color: #070b14;
-            --card-bg: #111827;
-            --card-border: #1f293d;
-            --accent-green: #84cc16;
-            --accent-cyan: #38bdf8;
-            --accent-amber: #f59e0b;
-            --accent-red: #ef4444;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
-            --btn-hover: #65a30d;
-        }
+      :root {
+        --bg-color: #070b14;
+        --card-bg: #111827;
+        --card-border: #1f293d;
+        --accent-green: #84cc16;
+        --accent-cyan: #38bdf8;
+        --accent-amber: #f59e0b;
+        --accent-red: #ef4444;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --btn-hover: #65a30d;
+      }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            padding: 24px 16px;
-            display: flex;
-            justify-content: center;
-        }
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-primary);
+        padding: 24px 16px;
+        display: flex;
+        justify-content: center;
+      }
 
-        .container {
-            width: 100%;
-            max-width: 860px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+      .container {
+        width: 100%;
+        max-width: 860px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
 
-        header {
-            text-align: center;
-            margin-bottom: 8px;
-        }
+      header {
+        text-align: center;
+        margin-bottom: 8px;
+      }
 
-        header h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
+      header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
 
-        header p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            margin-top: 6px;
-        }
+      header p {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        margin-top: 6px;
+      }
 
-        .card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        }
+      .card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+      }
 
-        /* File dropzone & inputs */
-        .dropzone {
-            border: 2px dashed var(--card-border);
-            border-radius: 8px;
-            padding: 30px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            background-color: rgba(15, 23, 42, 0.4);
-        }
+      /* File dropzone & inputs */
+      .dropzone {
+        border: 2px dashed var(--card-border);
+        border-radius: 8px;
+        padding: 30px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background-color: rgba(15, 23, 42, 0.4);
+      }
 
-        .dropzone:hover, .dropzone.dragover {
-            border-color: var(--accent-green);
-            background-color: rgba(16, 185, 129, 0.05);
-        }
+      .dropzone:hover,
+      .dropzone.dragover {
+        border-color: var(--accent-green);
+        background-color: rgba(16, 185, 129, 0.05);
+      }
 
-        .dropzone-icon {
-            font-size: 2.4rem;
-            margin-bottom: 8px;
-        }
+      .dropzone-icon {
+        font-size: 2.4rem;
+        margin-bottom: 8px;
+      }
 
-        .dropzone-text {
-            font-size: 1rem;
-            font-weight: 500;
-            color: var(--text-primary);
-        }
+      .dropzone-text {
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--text-primary);
+      }
 
-        .dropzone-sub {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
+      .dropzone-sub {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-top: 4px;
+      }
 
-        .url-input-group {
-            display: flex;
-            gap: 8px;
-            margin-top: 14px;
-        }
+      .url-input-group {
+        display: flex;
+        gap: 8px;
+        margin-top: 14px;
+      }
 
-        input[type="text"] {
-            flex: 1;
-            background-color: var(--bg-color);
-            border: 1px solid var(--card-border);
-            color: var(--text-primary);
-            padding: 10px 14px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            outline: none;
-        }
+      input[type='text'] {
+        flex: 1;
+        background-color: var(--bg-color);
+        border: 1px solid var(--card-border);
+        color: var(--text-primary);
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        outline: none;
+      }
 
-        input[type="text"]:focus {
-            border-color: var(--accent-cyan);
-        }
+      input[type='text']:focus {
+        border-color: var(--accent-cyan);
+      }
 
-        button {
-            background-color: var(--accent-green);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 10px 18px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
+      button {
+        background-color: var(--accent-green);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 10px 18px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
 
-        button:hover {
-            background-color: var(--btn-hover);
-        }
+      button:hover {
+        background-color: var(--btn-hover);
+      }
 
-        button:disabled {
-            background-color: #475569;
-            cursor: not-allowed;
-        }
+      button:disabled {
+        background-color: #475569;
+        cursor: not-allowed;
+      }
 
-        /* Metrics summary grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 12px;
-            margin-bottom: 18px;
-        }
+      /* Metrics summary grid */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
 
-        .stat-item {
-            background-color: rgba(15, 23, 42, 0.6);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-        }
+      .stat-item {
+        background-color: rgba(15, 23, 42, 0.6);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+      }
 
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
+      .stat-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
 
-        .stat-value {
-            font-size: 1.35rem;
-            font-weight: 700;
-            margin-top: 4px;
-            color: #fff;
-        }
+      .stat-value {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin-top: 4px;
+        color: #fff;
+      }
 
-        /* Route canvas preview */
-        .canvas-container {
-            position: relative;
-            width: 100%;
-            height: 380px;
-            background-color: #020617;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid var(--card-border);
-            margin-bottom: 18px;
-        }
+      /* Route canvas preview */
+      .canvas-container {
+        position: relative;
+        width: 100%;
+        height: 380px;
+        background-color: #020617;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--card-border);
+        margin-bottom: 18px;
+      }
 
-        canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
+      canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
 
-        .canvas-legend {
-            position: absolute;
-            bottom: 12px;
-            left: 12px;
-            background-color: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(4px);
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: 1px solid var(--card-border);
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            display: flex;
-            gap: 14px;
-        }
+      .canvas-legend {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        background-color: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(4px);
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--card-border);
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        display: flex;
+        gap: 14px;
+      }
 
-        .legend-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 4px;
-        }
+      .legend-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 4px;
+      }
 
-        /* Polyline output text & copy button */
-        .output-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
+      /* Polyline output text & copy button */
+      .output-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
 
-        textarea {
-            width: 100%;
-            height: 90px;
-            background-color: var(--bg-color);
-            border: 1px solid var(--card-border);
-            border-radius: 6px;
-            color: #a3e635;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.85rem;
-            padding: 10px;
-            resize: none;
-            outline: none;
-        }
+      textarea {
+        width: 100%;
+        height: 90px;
+        background-color: var(--bg-color);
+        border: 1px solid var(--card-border);
+        border-radius: 6px;
+        color: #a3e635;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.85rem;
+        padding: 10px;
+        resize: none;
+        outline: none;
+      }
 
-        .btn-copy {
-            align-self: flex-end;
-            background-color: #2563eb;
-        }
+      .btn-copy {
+        align-self: flex-end;
+        background-color: #2563eb;
+      }
 
-        .btn-copy:hover {
-            background-color: #1d4ed8;
-        }
+      .btn-copy:hover {
+        background-color: #1d4ed8;
+      }
 
-        /* Toast notification */
-        #toast {
-            position: fixed;
-            bottom: 24px;
-            left: 50%;
-            transform: translateX(-50%) translateY(100px);
-            background-color: #10b981;
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: 600;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
-            transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-            z-index: 1000;
-            pointer-events: none;
-        }
+      /* Toast notification */
+      #toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        background-color: #10b981;
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 20px;
+        font-weight: 600;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        z-index: 1000;
+        pointer-events: none;
+      }
 
-        #toast.show {
-            transform: translateX(-50%) translateY(0);
-        }
+      #toast.show {
+        transform: translateX(-50%) translateY(0);
+      }
 
-        .guide-list {
-            margin-left: 20px;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            line-height: 1.7;
-        }
+      .guide-list {
+        margin-left: 20px;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.7;
+      }
 
-        .guide-list strong {
-            color: var(--text-primary);
-        }
+      .guide-list strong {
+        color: var(--text-primary);
+      }
 
-        /* Garmin Venu 2 Plus bezel styling */
-        .watch-bezel {
-            width: 320px;
-            height: 320px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #334155, #0f172a);
-            padding: 15px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.1);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-        }
+      /* Garmin Venu 2 Plus bezel styling */
+      .watch-bezel {
+        width: 320px;
+        height: 320px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #334155, #0f172a);
+        padding: 15px;
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.7),
+          inset 0 2px 4px rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+      }
 
-        .watch-screen {
-            width: 290px;
-            height: 290px;
-            border-radius: 50%;
-            background-color: #000;
-            overflow: hidden;
-            position: relative;
-        }
+      .watch-screen {
+        width: 290px;
+        height: 290px;
+        border-radius: 50%;
+        background-color: #000;
+        overflow: hidden;
+        position: relative;
+      }
 
-        #watchCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
+      #watchCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
 
-        .sim-controls {
-            flex: 1;
-            min-width: 280px;
-            max-width: 400px;
-        }
+      .sim-controls {
+        flex: 1;
+        min-width: 280px;
+        max-width: 400px;
+      }
 
-        .control-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
+      .control-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+      }
     </style>
-</head>
-<body>
-
-<div class="container">
-    <header>
+  </head>
+  <body>
+    <div class="container">
+      <header>
         <h1>🪲✨ He-Kim-Koo (Firefly) GPS Art Route Converter</h1>
-        <p>Crafted for Garmin Venu 2 Plus: Bioluminescent night aesthetics, angular smoothing, dynamic progress coloring, and milestone trail sparks</p>
-    </header>
+        <p>
+          Crafted for Garmin Venu 2 Plus: Bioluminescent night aesthetics, angular smoothing,
+          dynamic progress coloring, and milestone trail sparks
+        </p>
+      </header>
 
-    <!-- Upload & Input Card -->
-    <div class="card">
+      <!-- Upload & Input Card -->
+      <div class="card">
         <div class="dropzone" id="dropzone">
-            <div class="dropzone-icon">📁</div>
-            <div class="dropzone-text">Drag and drop a .gpx file here, or click to browse</div>
-            <div class="dropzone-sub">Parsed and simplified completely within your browser locally — zero server uploads</div>
-            <input type="file" id="fileInput" accept=".gpx" style="display: none;">
+          <div class="dropzone-icon">📁</div>
+          <div class="dropzone-text">Drag and drop a .gpx file here, or click to browse</div>
+          <div class="dropzone-sub">
+            Parsed and simplified completely within your browser locally — zero server uploads
+          </div>
+          <input type="file" id="fileInput" accept=".gpx" style="display: none" />
         </div>
 
         <div class="url-input-group">
-            <input type="text" id="urlInput" placeholder="Or enter a public GPX URL (HTTPS supported)">
-            <button id="btnFetchUrl">Load URL</button>
-            <button id="btnLoadSample" style="background: #6366f1; white-space: nowrap;">⚡ Load Sample Route</button>
+          <input
+            type="text"
+            id="urlInput"
+            placeholder="Or enter a public GPX URL (HTTPS supported)"
+          />
+          <button id="btnFetchUrl">Load URL</button>
+          <button id="btnLoadSample" style="background: #6366f1; white-space: nowrap">
+            ⚡ Load Sample Route
+          </button>
         </div>
-    </div>
+      </div>
 
-    <!-- Output & Results Preview Card -->
-    <div class="card" id="resultCard" style="display: none;">
+      <!-- Output & Results Preview Card -->
+      <div class="card" id="resultCard" style="display: none">
         <div class="stats-grid">
-            <div class="stat-item">
-                <div class="stat-label">Original Points</div>
-                <div class="stat-value" id="valOrigPoints">0</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Simplified Points</div>
-                <div class="stat-value" id="valSimpPoints">0</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Total Distance</div>
-                <div class="stat-value" id="valDistance">0 km</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Encoded String Length</div>
-                <div class="stat-value" id="valStrLen">0 chars</div>
-            </div>
+          <div class="stat-item">
+            <div class="stat-label">Original Points</div>
+            <div class="stat-value" id="valOrigPoints">0</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Simplified Points</div>
+            <div class="stat-value" id="valSimpPoints">0</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Distance</div>
+            <div class="stat-value" id="valDistance">0 km</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Encoded String Length</div>
+            <div class="stat-value" id="valStrLen">0 chars</div>
+          </div>
         </div>
 
         <div class="canvas-container">
-            <canvas id="trailCanvas"></canvas>
-            <div class="canvas-legend">
-                <span><span class="legend-dot" style="background: #10b981;"></span>Simplified Route</span>
-                <span><span class="legend-dot" style="background: #38bdf8;"></span>Anchor Corners</span>
-                <span><span class="legend-dot" style="background: #ef4444;"></span>Start / End</span>
-            </div>
+          <canvas id="trailCanvas"></canvas>
+          <div class="canvas-legend">
+            <span
+              ><span class="legend-dot" style="background: #10b981"></span>Simplified Route</span
+            >
+            <span><span class="legend-dot" style="background: #38bdf8"></span>Anchor Corners</span>
+            <span><span class="legend-dot" style="background: #ef4444"></span>Start / End</span>
+          </div>
         </div>
 
         <div class="output-group">
-            <label style="font-size: 0.9rem; font-weight: 600;">Encoded Route String (Google Encoded Polyline):</label>
-            <textarea id="outputPolyline" readonly></textarea>
-            <button class="btn-copy" id="btnCopy">📋 Copy Route String</button>
+          <label style="font-size: 0.9rem; font-weight: 600"
+            >Encoded Route String (Google Encoded Polyline):</label
+          >
+          <textarea id="outputPolyline" readonly></textarea>
+          <button class="btn-copy" id="btnCopy">📋 Copy Route String</button>
         </div>
-    </div>
+      </div>
 
-    <!-- 1:1 Garmin Venu 2 Plus Interactive AMOLED Simulator -->
-    <div class="card" id="simCard" style="display: none;">
-        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-            ⌚ Garmin Venu 2 Plus (416 × 416 AMOLED) Live Simulator
+      <!-- 1:1 Garmin Venu 2 Plus Interactive AMOLED Simulator -->
+      <div class="card" id="simCard" style="display: none">
+        <h2
+          style="
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          "
+        >
+          ⌚ Garmin Venu 2 Plus (416 × 416 AMOLED) Live Simulator
         </h2>
-        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
-            1:1 real-time emulation of watch Monkey C rendering: Heading-Up 2D matrix rotation, runner chevron, off-course evaluation, and viewport culling.
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px">
+          1:1 real-time emulation of watch Monkey C rendering: Heading-Up 2D matrix rotation, runner
+          chevron, off-course evaluation, and viewport culling.
         </p>
 
-        <div style="display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; align-items: center;">
-            <!-- Watch Bezel -->
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
-                <div class="watch-bezel">
-                    <div class="watch-screen">
-                        <canvas id="watchCanvas" width="416" height="416"></canvas>
-                    </div>
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 4px;">
-                    <span><span style="color: #00e5ff; font-weight: bold;">●</span> Upcoming Route (Electric Cyan 4px)</span>
-                    <span><span style="color: #f59e0b; font-weight: bold;">●</span> Completed Route (Warm Amber 4px)</span>
-                    <span><span style="color: #a3e635; font-weight: bold;">▲</span> Firefly Cursor (Cold Lime-Green)</span>
-                    <span><span style="color: #a3e635; font-weight: bold;">✨</span> 20m Milestone Sparks (10 dots / 200m)</span>
-                </div>
+        <div
+          style="
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            justify-content: center;
+            align-items: center;
+          "
+        >
+          <!-- Watch Bezel -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+            <div class="watch-bezel">
+              <div class="watch-screen">
+                <canvas id="watchCanvas" width="416" height="416"></canvas>
+              </div>
+            </div>
+            <div
+              style="
+                font-size: 0.75rem;
+                color: var(--text-secondary);
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 12px;
+                margin-top: 4px;
+              "
+            >
+              <span
+                ><span style="color: #00e5ff; font-weight: bold">●</span> Route Path (Electric Cyan
+                4px)</span
+              >
+              <span
+                ><span style="color: #00e5ff; font-weight: bold">›</span> Chevrons (50m)</span
+              >
+              <span
+                ><span style="color: #00e5ff; font-weight: bold; font-size: 1.1rem">›</span> Major Chevrons (250m)</span
+              >
+              <span
+                ><span style="color: #a3e635; font-weight: bold">▲</span> Firefly Cursor (Cold
+                Lime-Green)</span
+              >
+              <span
+                ><span style="color: #a3e635; font-weight: bold">✨</span> 20m Milestone Sparks (10
+                dots / 200m)</span
+              >
+            </div>
+          </div>
+
+          <!-- Simulator Controls -->
+          <div class="sim-controls">
+            <div style="display: flex; gap: 8px; margin-bottom: 12px">
+              <button id="btnSimPlay" style="flex: 1">▶ Start Run Simulation</button>
+              <button id="btnSimReset" style="background: #475569">Reset</button>
             </div>
 
-            <!-- Simulator Controls -->
-            <div class="sim-controls">
-                <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                    <button id="btnSimPlay" style="flex: 1;">▶ Start Run Simulation</button>
-                    <button id="btnSimReset" style="background: #475569;">Reset</button>
-                </div>
-
-                <div class="control-row">
-                    <label>Simulation Pace / Speed:</label>
-                    <select id="simSpeedSelect" style="background: var(--bg-color); color: #fff; border: 1px solid var(--card-border); padding: 4px 8px; border-radius: 4px;">
-                        <option value="1">1x (Normal Pace)</option>
-                        <option value="3" selected>3x (Fast Run)</option>
-                        <option value="8">8x (Max Speed Preview)</option>
-                    </select>
-                </div>
-
-                <div class="control-row" style="margin-top: 10px;">
-                    <label>Route Color Scheme:</label>
-                    <select id="simColorModeSelect" style="background: var(--bg-color); color: #fff; border: 1px solid var(--card-border); padding: 4px 8px; border-radius: 4px;">
-                        <option value="split" selected>[Cyan Blueprint + Golden Art] Plan A (Bioluminescent)</option>
-                        <option value="all-cyan">[Full Electric Cyan] Classic Monochrome</option>
-                    </select>
-                </div>
-
-                <div class="control-row" style="margin-top: 10px;">
-                    <label>Off-Course Test:</label>
-                    <button id="btnSimDeviate" style="background: #dc2626; padding: 6px 12px; font-size: 0.85rem;">Force Deviate 45m Right</button>
-                </div>
-
-                <div class="control-row" style="margin-top: 10px;">
-                    <label>Heading / Compass Manual Trim:</label>
-                    <input type="range" id="simHeadingSlider" min="0" max="360" value="0" style="flex: 1;">
-                    <span id="simHeadingVal" style="font-family: monospace; font-size: 0.85rem; width: 40px; text-align: right;">0°</span>
-                </div>
-
-                <!-- Live Metrics Readout -->
-                <div style="margin-top: 16px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px; font-size: 0.8rem; line-height: 1.6;">
-                    <div>Current Heading: <span id="readoutHeading" style="color: var(--accent-cyan); font-weight: 600;">0°</span></div>
-                    <div>Cross-Track Distance (CTD): <span id="readoutCtd" style="color: var(--accent-green); font-weight: 600;">0.0 m</span></div>
-                    <div>Off-Course Alert Status: <span id="readoutStatus" style="color: #94a3b8; font-weight: 600;">ON COURSE</span></div>
-                    <div>Progress Index: <span id="readoutIdx" style="color: #f8fafc; font-weight: 600;">0</span></div>
-                </div>
+            <div class="control-row">
+              <label>Route Direction:</label>
+              <button
+                id="btnSimDirection"
+                style="background: #2563eb; padding: 6px 12px; font-size: 0.85rem"
+              >
+                ⇄ Direction: Forward
+              </button>
             </div>
+
+            <div class="control-row" style="margin-top: 10px">
+              <label>Simulation Pace / Speed:</label>
+              <select
+                id="simSpeedSelect"
+                style="
+                  background: var(--bg-color);
+                  color: #fff;
+                  border: 1px solid var(--card-border);
+                  padding: 4px 8px;
+                  border-radius: 4px;
+                "
+              >
+                <option value="1">1x (Normal Pace)</option>
+                <option value="3" selected>3x (Fast Run)</option>
+                <option value="8">8x (Max Speed Preview)</option>
+              </select>
+            </div>
+
+            <div class="control-row" style="margin-top: 10px">
+              <label>Off-Course Test:</label>
+              <button
+                id="btnSimDeviate"
+                style="background: #dc2626; padding: 6px 12px; font-size: 0.85rem"
+              >
+                Force Deviate 45m Right
+              </button>
+            </div>
+
+            <div class="control-row" style="margin-top: 10px">
+              <label>Heading / Compass Manual Trim:</label>
+              <input
+                type="range"
+                id="simHeadingSlider"
+                min="0"
+                max="360"
+                value="0"
+                style="flex: 1"
+              />
+              <span
+                id="simHeadingVal"
+                style="font-family: monospace; font-size: 0.85rem; width: 40px; text-align: right"
+                >0°</span
+              >
+            </div>
+
+            <div class="control-row" style="margin-top: 10px">
+              <label>Map View Range (Zoom):</label>
+              <input
+                type="range"
+                id="simRangeSlider"
+                min="50"
+                max="500"
+                value="175"
+                step="5"
+                style="flex: 1"
+              />
+              <span
+                id="simRangeVal"
+                style="font-family: monospace; font-size: 0.85rem; width: 45px; text-align: right"
+                >175m</span
+              >
+            </div>
+
+            <!-- Live Metrics Readout -->
+            <div
+              style="
+                margin-top: 16px;
+                background: rgba(15, 23, 42, 0.7);
+                border: 1px solid var(--card-border);
+                border-radius: 6px;
+                padding: 10px;
+                font-size: 0.8rem;
+                line-height: 1.6;
+              "
+            >
+              <div>
+                Current Heading:
+                <span id="readoutHeading" style="color: var(--accent-cyan); font-weight: 600"
+                  >0°</span
+                >
+              </div>
+              <div>
+                Cross-Track Distance (CTD):
+                <span id="readoutCtd" style="color: var(--accent-green); font-weight: 600"
+                  >0.0 m</span
+                >
+              </div>
+              <div>
+                Off-Course Alert Status:
+                <span id="readoutStatus" style="color: #94a3b8; font-weight: 600">ON COURSE</span>
+              </div>
+            </div>
+          </div>
         </div>
-    </div>
+      </div>
 
-    <!-- Step-by-Step Instructions Card -->
-    <div class="card">
-        <h3 style="font-size: 1.05rem; margin-bottom: 8px;">📲 How to transfer routes to Garmin Venu 2 Plus?</h3>
+      <!-- Step-by-Step Instructions Card -->
+      <div class="card">
+        <h3 style="font-size: 1.05rem; margin-bottom: 8px">
+          📲 How to transfer routes to Garmin Venu 2 Plus?
+        </h3>
         <ol class="guide-list">
-            <li>Click <strong>"Copy Route String"</strong> above to copy the compressed Polyline.</li>
-            <li>Open the <strong>Garmin Connect</strong> or <strong>Connect IQ Store</strong> app on your smartphone.</li>
-            <li>Navigate to <strong>My Devices</strong> ➔ Tap <strong>Venu 2 Plus</strong> ➔ <strong>Activities, Apps & More</strong> ➔ <strong>Data Fields</strong>.</li>
-            <li>Locate <strong>He-Kim-Koo (Route Field)</strong> ➔ Open <strong>Settings</strong>.</li>
-            <li>Paste the copied string into the <strong>Route String (Polyline)</strong> field and tap Save.</li>
-            <li>Start a "Run" activity on the watch; your GPS art will instantly render with real-time navigation!</li>
+          <li>Click <strong>"Copy Route String"</strong> above to copy the compressed Polyline.</li>
+          <li>
+            Open the <strong>Garmin Connect</strong> or <strong>Connect IQ Store</strong> app on
+            your smartphone.
+          </li>
+          <li>
+            Navigate to <strong>My Devices</strong> ➔ Tap <strong>Venu 2 Plus</strong> ➔
+            <strong>Activities, Apps & More</strong> ➔ <strong>Data Fields</strong>.
+          </li>
+          <li>
+            Locate <strong>He-Kim-Koo (Route Field)</strong> ➔ Open <strong>Settings</strong>.
+          </li>
+          <li>
+            Paste the copied string into <strong>Route String (Polyline)</strong>, choose
+            <strong>Route Direction</strong> (Forward or Reverse), optionally customize
+            <strong>Map View Range (Meters)</strong>, and tap Save.
+          </li>
+          <li>
+            Start a "Run" activity on the watch; your GPS art will instantly render with real-time
+            navigation!
+          </li>
         </ol>
+      </div>
     </div>
-</div>
 
-<div id="toast">Copied to clipboard!</div>
+    <div id="toast">Copied to clipboard!</div>
 
-<script>
-    // DOM Elements
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('fileInput');
-    const urlInput = document.getElementById('urlInput');
-    const btnFetchUrl = document.getElementById('btnFetchUrl');
-    const resultCard = document.getElementById('resultCard');
-    const valOrigPoints = document.getElementById('valOrigPoints');
-    const valSimpPoints = document.getElementById('valSimpPoints');
-    const valDistance = document.getElementById('valDistance');
-    const valStrLen = document.getElementById('valStrLen');
-    const outputPolyline = document.getElementById('outputPolyline');
-    const btnCopy = document.getElementById('btnCopy');
-    const trailCanvas = document.getElementById('trailCanvas');
-    const toast = document.getElementById('toast');
+    <script>
+      // DOM Elements
+      const dropzone = document.getElementById('dropzone');
+      const fileInput = document.getElementById('fileInput');
+      const urlInput = document.getElementById('urlInput');
+      const btnFetchUrl = document.getElementById('btnFetchUrl');
+      const resultCard = document.getElementById('resultCard');
+      const valOrigPoints = document.getElementById('valOrigPoints');
+      const valSimpPoints = document.getElementById('valSimpPoints');
+      const valDistance = document.getElementById('valDistance');
+      const valStrLen = document.getElementById('valStrLen');
+      const outputPolyline = document.getElementById('outputPolyline');
+      const btnCopy = document.getElementById('btnCopy');
+      const trailCanvas = document.getElementById('trailCanvas');
+      const toast = document.getElementById('toast');
 
-    // Event listeners: File drag & drop
-    dropzone.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('dragover', (e) => {
+      // Event listeners: File drag & drop
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropzone.classList.add('dragover');
-    });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-    dropzone.addEventListener('drop', (e) => {
+      });
+      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+      dropzone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropzone.classList.remove('dragover');
         if (e.dataTransfer.files.length > 0) {
-            handleFile(e.dataTransfer.files[0]);
+          handleFile(e.dataTransfer.files[0]);
         }
-    });
-    fileInput.addEventListener('change', (e) => {
+      });
+      fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
-            handleFile(e.target.files[0]);
+          handleFile(e.target.files[0]);
         }
-    });
+      });
 
-    // Event listeners: URL Fetching
-    btnFetchUrl.addEventListener('click', async () => {
+      // Event listeners: URL Fetching
+      btnFetchUrl.addEventListener('click', async () => {
         const url = urlInput.value.trim();
         if (!url) return;
         btnFetchUrl.disabled = true;
         btnFetchUrl.innerText = 'Fetching...';
         try {
-            let res;
-            try {
-                res = await fetch(url);
-            } catch (err) {
-                // Fallback to CORS proxy if restricted
-                const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-                res = await fetch(proxyUrl);
-            }
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const text = await res.text();
-            processGpxXml(text);
+          let res;
+          try {
+            res = await fetch(url);
+          } catch (err) {
+            // Fallback to CORS proxy if restricted
+            const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+            res = await fetch(proxyUrl);
+          }
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const text = await res.text();
+          processGpxXml(text);
         } catch (e) {
-            alert('Failed to download or parse GPX: ' + e.message + '\nPlease verify URL accessibility or upload a local .gpx file.');
+          alert(
+            'Failed to download or parse GPX: ' +
+              e.message +
+              '\nPlease verify URL accessibility or upload a local .gpx file.',
+          );
         } finally {
-            btnFetchUrl.disabled = false;
-            btnFetchUrl.innerText = 'Load URL';
+          btnFetchUrl.disabled = false;
+          btnFetchUrl.innerText = 'Load URL';
         }
-    });
+      });
 
-    // File handler
-    function handleFile(file) {
+      // File handler
+      function handleFile(file) {
         const reader = new FileReader();
         reader.onload = (e) => processGpxXml(e.target.result);
         reader.readAsText(file);
-    }
+      }
 
-    // GPX XML Parser
-    function processGpxXml(xmlText) {
+      // GPX XML Parser
+      function processGpxXml(xmlText) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
         const points = [];
@@ -551,22 +699,22 @@
         // Query <trkpt> and <rtept>
         const trkpts = xmlDoc.querySelectorAll('trkpt, rtept');
         for (let i = 0; i < trkpts.length; i++) {
-            const lat = parseFloat(trkpts[i].getAttribute('lat'));
-            const lon = parseFloat(trkpts[i].getAttribute('lon'));
-            if (!isNaN(lat) && !isNaN(lon)) {
-                points.push({ lat, lon });
-            }
+          const lat = parseFloat(trkpts[i].getAttribute('lat'));
+          const lon = parseFloat(trkpts[i].getAttribute('lon'));
+          if (!isNaN(lat) && !isNaN(lon)) {
+            points.push({ lat, lon });
+          }
         }
 
         if (points.length < 2) {
-            alert('No valid GPS trackpoints (<trkpt> or <rtept>) found in the GPX file.');
-            return;
+          alert('No valid GPS trackpoints (<trkpt> or <rtept>) found in the GPX file.');
+          return;
         }
 
         // Calculate total distance
         let totalMeters = 0;
         for (let i = 0; i < points.length - 1; i++) {
-            totalMeters += calcDistanceMeters(points[i], points[i + 1]);
+          totalMeters += calcDistanceMeters(points[i], points[i + 1]);
         }
 
         // Smart corner-preserving simplification (target 100~130 points)
@@ -589,101 +737,111 @@
         // Initialize watch simulator
         simCard.style.display = 'block';
         initWatchSimulation(simplified);
-    }
+      }
 
-    // Great circle distance in meters (Haversine projection)
-    function calcDistanceMeters(p1, p2) {
+      // Great circle distance in meters (Haversine projection)
+      function calcDistanceMeters(p1, p2) {
         const R = 6371000;
-        const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-        const dLon = (p2.lon - p1.lon) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const dLat = ((p2.lat - p1.lat) * Math.PI) / 180;
+        const dLon = ((p2.lon - p1.lon) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((p1.lat * Math.PI) / 180) *
+            Math.cos((p2.lat * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
+      }
 
-    // Smart simplification: Corner preservation (>45°) + dynamic binary RDP
-    function smartSimplifyRoute(points, minTarget, maxTarget) {
+      // Smart simplification: Corner preservation (>45°) + dynamic binary RDP
+      function smartSimplifyRoute(points, minTarget, maxTarget) {
         if (points.length <= maxTarget) return points;
 
         // 1. Detect and lock sharp corner anchors to protect critical geometry features
         const anchors = new Set([0, points.length - 1]);
         for (let i = 1; i < points.length - 1; i++) {
-            const v1 = { x: points[i].lon - points[i - 1].lon, y: points[i].lat - points[i - 1].lat };
-            const v2 = { x: points[i + 1].lon - points[i].lon, y: points[i + 1].lat - points[i + 1].lat };
-            const dot = v1.x * v2.x + v1.y * v2.y;
-            const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
-            const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
-            if (mag1 > 0 && mag2 > 0) {
-                const cosTheta = Math.max(-1, Math.min(1, dot / (mag1 * mag2)));
-                const angleDeg = Math.acos(cosTheta) * 180 / Math.PI;
-                if (angleDeg > 45) {
-                    anchors.add(i);
-                }
+          const v1 = { x: points[i].lon - points[i - 1].lon, y: points[i].lat - points[i - 1].lat };
+          const v2 = {
+            x: points[i + 1].lon - points[i].lon,
+            y: points[i + 1].lat - points[i + 1].lat,
+          };
+          const dot = v1.x * v2.x + v1.y * v2.y;
+          const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+          const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+          if (mag1 > 0 && mag2 > 0) {
+            const cosTheta = Math.max(-1, Math.min(1, dot / (mag1 * mag2)));
+            const angleDeg = (Math.acos(cosTheta) * 180) / Math.PI;
+            if (angleDeg > 45) {
+              anchors.add(i);
             }
+          }
         }
 
         // 2. Binary search RDP epsilon tolerance to converge into [minTarget, maxTarget]
-        let low = 0.5;   // 0.5m
+        let low = 0.5; // 0.5m
         let high = 500.0; // 500m
         let bestResult = points;
 
         for (let iter = 0; iter < 18; iter++) {
-            const mid = (low + high) / 2;
-            const res = rdpWithAnchors(points, Array.from(anchors).sort((a,b)=>a-b), mid);
-            bestResult = res;
+          const mid = (low + high) / 2;
+          const res = rdpWithAnchors(
+            points,
+            Array.from(anchors).sort((a, b) => a - b),
+            mid,
+          );
+          bestResult = res;
 
-            if (res.length > maxTarget) {
-                low = mid;
-            } else if (res.length < minTarget) {
-                high = mid;
-            } else {
-                break;
-            }
+          if (res.length > maxTarget) {
+            low = mid;
+          } else if (res.length < minTarget) {
+            high = mid;
+          } else {
+            break;
+          }
         }
 
         return bestResult;
-    }
+      }
 
-    // Segmented RDP honoring locked corner anchors
-    function rdpWithAnchors(points, anchorIndices, epsilonMeters) {
+      // Segmented RDP honoring locked corner anchors
+      function rdpWithAnchors(points, anchorIndices, epsilonMeters) {
         const keptIndices = new Set(anchorIndices);
 
         for (let i = 0; i < anchorIndices.length - 1; i++) {
-            const startIdx = anchorIndices[i];
-            const endIdx = anchorIndices[i + 1];
-            if (endIdx - startIdx > 1) {
-                simplifySegment(points, startIdx, endIdx, epsilonMeters, keptIndices);
-            }
+          const startIdx = anchorIndices[i];
+          const endIdx = anchorIndices[i + 1];
+          if (endIdx - startIdx > 1) {
+            simplifySegment(points, startIdx, endIdx, epsilonMeters, keptIndices);
+          }
         }
 
         const sorted = Array.from(keptIndices).sort((a, b) => a - b);
-        return sorted.map(idx => points[idx]);
-    }
+        return sorted.map((idx) => points[idx]);
+      }
 
-    function simplifySegment(points, start, end, epsilon, kept) {
+      function simplifySegment(points, start, end, epsilon, kept) {
         let maxDist = 0;
         let maxIndex = start;
         const pStart = points[start];
         const pEnd = points[end];
 
         for (let i = start + 1; i < end; i++) {
-            const d = pointToSegmentDistanceMeters(points[i], pStart, pEnd);
-            if (d > maxDist) {
-                maxDist = d;
-                maxIndex = i;
-            }
+          const d = pointToSegmentDistanceMeters(points[i], pStart, pEnd);
+          if (d > maxDist) {
+            maxDist = d;
+            maxIndex = i;
+          }
         }
 
         if (maxDist > epsilon) {
-            kept.add(maxIndex);
-            simplifySegment(points, start, maxIndex, epsilon, kept);
-            simplifySegment(points, maxIndex, end, epsilon, kept);
+          kept.add(maxIndex);
+          simplifySegment(points, start, maxIndex, epsilon, kept);
+          simplifySegment(points, maxIndex, end, epsilon, kept);
         }
-    }
+      }
 
-    // Cross-track distance in meters
-    function pointToSegmentDistanceMeters(p, a, b) {
+      // Cross-track distance in meters
+      function pointToSegmentDistanceMeters(p, a, b) {
         const cosLat = Math.cos((p.lat * Math.PI) / 180);
         const ax = a.lon * 111319.5 * cosLat;
         const ay = a.lat * 111132.9;
@@ -701,41 +859,41 @@
         const projX = ax + t * vx;
         const projY = ay + t * vy;
         return Math.hypot(px - projX, py - projY);
-    }
+      }
 
-    // Google Polyline Encoder
-    function encodeGooglePolyline(points) {
+      // Google Polyline Encoder
+      function encodeGooglePolyline(points) {
         let output = '';
         let prevLat = 0;
         let prevLon = 0;
 
         for (let i = 0; i < points.length; i++) {
-            const lat = Math.round(points[i].lat * 1e5);
-            const lon = Math.round(points[i].lon * 1e5);
+          const lat = Math.round(points[i].lat * 1e5);
+          const lon = Math.round(points[i].lon * 1e5);
 
-            output += encodeSigned(lat - prevLat);
-            output += encodeSigned(lon - prevLon);
+          output += encodeSigned(lat - prevLat);
+          output += encodeSigned(lon - prevLon);
 
-            prevLat = lat;
-            prevLon = lon;
+          prevLat = lat;
+          prevLon = lon;
         }
 
         return output;
-    }
+      }
 
-    function encodeSigned(num) {
-        let sgnNum = num < 0 ? ~(num << 1) : (num << 1);
+      function encodeSigned(num) {
+        let sgnNum = num < 0 ? ~(num << 1) : num << 1;
         let str = '';
         while (sgnNum >= 0x20) {
-            str += String.fromCharCode((0x20 | (sgnNum & 0x1f)) + 63);
-            sgnNum >>= 5;
+          str += String.fromCharCode((0x20 | (sgnNum & 0x1f)) + 63);
+          sgnNum >>= 5;
         }
         str += String.fromCharCode(sgnNum + 63);
         return str;
-    }
+      }
 
-    // Canvas Preview Renderer
-    function renderCanvas(origPoints, simpPoints) {
+      // Canvas Preview Renderer
+      function renderCanvas(origPoints, simpPoints) {
         const canvas = trailCanvas;
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
@@ -747,19 +905,22 @@
         ctx.clearRect(0, 0, rect.width, rect.height);
 
         // Find coordinate bounding box
-        let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
-        origPoints.forEach(p => {
-            if (p.lat < minLat) minLat = p.lat;
-            if (p.lat > maxLat) maxLat = p.lat;
-            if (p.lon < minLon) minLon = p.lon;
-            if (p.lon > maxLon) maxLon = p.lon;
+        let minLat = 90,
+          maxLat = -90,
+          minLon = 180,
+          maxLon = -180;
+        origPoints.forEach((p) => {
+          if (p.lat < minLat) minLat = p.lat;
+          if (p.lat > maxLat) maxLat = p.lat;
+          if (p.lon < minLon) minLon = p.lon;
+          if (p.lon > maxLon) maxLon = p.lon;
         });
 
         const padding = 28;
         const drawW = rect.width - padding * 2;
         const drawH = rect.height - padding * 2;
 
-        const cosLat = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+        const cosLat = Math.cos((((minLat + maxLat) / 2) * Math.PI) / 180);
         const geoW = (maxLon - minLon) * cosLat;
         const geoH = maxLat - minLat;
 
@@ -768,9 +929,9 @@
         const offsetY = padding + (drawH - geoH * scale) / 2;
 
         function toScreen(p) {
-            const x = offsetX + (p.lon - minLon) * cosLat * scale;
-            const y = offsetY + (maxLat - p.lat) * scale;
-            return { x, y };
+          const x = offsetX + (p.lon - minLon) * cosLat * scale;
+          const y = offsetY + (maxLat - p.lat) * scale;
+          return { x, y };
         }
 
         // 1. Original track (thin translucent gray line)
@@ -778,9 +939,9 @@
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
         ctx.lineWidth = 1;
         origPoints.forEach((p, idx) => {
-            const pt = toScreen(p);
-            if (idx === 0) ctx.moveTo(pt.x, pt.y);
-            else ctx.lineTo(pt.x, pt.y);
+          const pt = toScreen(p);
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
         });
         ctx.stroke();
 
@@ -791,21 +952,21 @@
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         simpPoints.forEach((p, idx) => {
-            const pt = toScreen(p);
-            if (idx === 0) ctx.moveTo(pt.x, pt.y);
-            else ctx.lineTo(pt.x, pt.y);
+          const pt = toScreen(p);
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
         });
         ctx.stroke();
 
         // 3. Simplified nodes (cyan dots)
         ctx.fillStyle = '#38bdf8';
         simpPoints.forEach((p, idx) => {
-            if (idx !== 0 && idx !== simpPoints.length - 1) {
-                const pt = toScreen(p);
-                ctx.beginPath();
-                ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
-                ctx.fill();
-            }
+          if (idx !== 0 && idx !== simpPoints.length - 1) {
+            const pt = toScreen(p);
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
         });
 
         // 4. Start (green) and End (red) nodes
@@ -825,23 +986,23 @@
         ctx.arc(endPt.x, endPt.y, 6, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-    }
+      }
 
-    // One-click copy
-    btnCopy.addEventListener('click', () => {
+      // One-click copy
+      btnCopy.addEventListener('click', () => {
         outputPolyline.select();
         navigator.clipboard.writeText(outputPolyline.value).then(() => {
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 2000);
+          toast.classList.add('show');
+          setTimeout(() => toast.classList.remove('show'), 2000);
         });
-    });
+      });
 
-    // ==========================================
-    // Sample Route Generator (5-point star art)
-    // ==========================================
-    const btnLoadSample = document.getElementById('btnLoadSample');
-    btnLoadSample.addEventListener('click', () => {
-        const baseLat = 25.0330;
+      // ==========================================
+      // Sample Route Generator (5-point star art)
+      // ==========================================
+      const btnLoadSample = document.getElementById('btnLoadSample');
+      btnLoadSample.addEventListener('click', () => {
+        const baseLat = 25.033;
         const baseLon = 121.5654;
         const pts = [];
         const numArms = 5;
@@ -849,53 +1010,56 @@
         const rInner = 0.0016;
 
         for (let i = 0; i <= numArms * 2; i++) {
-            const angle = (i * Math.PI / numArms) - Math.PI / 2;
-            const r = (i % 2 === 0) ? rOuter : rInner;
-            const lat = baseLat + r * Math.sin(angle);
-            const lon = baseLon + (r * Math.cos(angle)) / Math.cos(baseLat * Math.PI / 180);
-            if (pts.length > 0) {
-                const prev = pts[pts.length - 1];
-                for (let step = 1; step <= 8; step++) {
-                    pts.push({
-                        lat: prev.lat + (lat - prev.lat) * (step / 8),
-                        lon: prev.lon + (lon - prev.lon) * (step / 8)
-                    });
-                }
-            } else {
-                pts.push({ lat, lon });
+          const angle = (i * Math.PI) / numArms - Math.PI / 2;
+          const r = i % 2 === 0 ? rOuter : rInner;
+          const lat = baseLat + r * Math.sin(angle);
+          const lon = baseLon + (r * Math.cos(angle)) / Math.cos((baseLat * Math.PI) / 180);
+          if (pts.length > 0) {
+            const prev = pts[pts.length - 1];
+            for (let step = 1; step <= 8; step++) {
+              pts.push({
+                lat: prev.lat + (lat - prev.lat) * (step / 8),
+                lon: prev.lon + (lon - prev.lon) * (step / 8),
+              });
             }
+          } else {
+            pts.push({ lat, lon });
+          }
         }
 
         let gpx = '<?xml version="1.0"?><gpx version="1.1"><trk><trkseg>';
-        pts.forEach(p => {
-            gpx += `<trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}"></trkpt>`;
+        pts.forEach((p) => {
+          gpx += `<trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}"></trkpt>`;
         });
         gpx += '</trkseg></trk></gpx>';
         processGpxXml(gpx);
-    });
+      });
 
-    // ==========================================
-    // 1:1 Garmin Venu 2 Plus Simulation Engine
-    // ==========================================
-    const simCard = document.getElementById('simCard');
-    const watchCanvas = document.getElementById('watchCanvas');
-    const watchCtx = watchCanvas.getContext('2d');
-    const btnSimPlay = document.getElementById('btnSimPlay');
-    const btnSimReset = document.getElementById('btnSimReset');
-    const simSpeedSelect = document.getElementById('simSpeedSelect');
-    const simColorModeSelect = document.getElementById('simColorModeSelect');
-    const btnSimDeviate = document.getElementById('btnSimDeviate');
-    const simHeadingSlider = document.getElementById('simHeadingSlider');
-    const simHeadingVal = document.getElementById('simHeadingVal');
-    const readoutHeading = document.getElementById('readoutHeading');
-    const readoutCtd = document.getElementById('readoutCtd');
-    const readoutStatus = document.getElementById('readoutStatus');
-    const readoutIdx = document.getElementById('readoutIdx');
+      // ==========================================
+      // 1:1 Garmin Venu 2 Plus Simulation Engine
+      // ==========================================
+      const simCard = document.getElementById('simCard');
+      const watchCanvas = document.getElementById('watchCanvas');
+      const watchCtx = watchCanvas.getContext('2d');
+      const btnSimPlay = document.getElementById('btnSimPlay');
+      const btnSimReset = document.getElementById('btnSimReset');
+      const simSpeedSelect = document.getElementById('simSpeedSelect');
+      const btnSimDeviate = document.getElementById('btnSimDeviate');
+      const simHeadingSlider = document.getElementById('simHeadingSlider');
+      const simHeadingVal = document.getElementById('simHeadingVal');
+      const simRangeSlider = document.getElementById('simRangeSlider');
+      const simRangeVal = document.getElementById('simRangeVal');
+      const btnSimDirection = document.getElementById('btnSimDirection');
+      const readoutHeading = document.getElementById('readoutHeading');
+      const readoutCtd = document.getElementById('readoutCtd');
+      const readoutStatus = document.getElementById('readoutStatus');
 
-    let simRoute = [];
-    let simTrail = []; // Up to 80 points (~200m smooth comet stream)
-    let simSparks = []; // Up to 10 milestone sparks (20m interval covering 200m)
-    let simState = {
+      let isReversed = false;
+      let simRoute = [];
+      let simChevrons = []; // Precomputed 50m / 250m directional chevrons along route
+      let simTrail = []; // Up to 80 points (~200m smooth comet stream)
+      let simSparks = []; // Up to 10 milestone sparks (20m interval covering 200m)
+      let simState = {
         segIdx: 0,
         segProgress: 0.0,
         currLat: 0,
@@ -903,30 +1067,75 @@
         targetHeadingRad: 0.0,
         renderHeadingRad: 0.0,
         manualHeading: false,
+        mapRange: 175,
         deviateMeters: 0,
         isPlaying: false,
-        progressIdx: 0,
         lastTrailLat: 0,
         lastTrailLon: 0,
         lastSparkLat: 0,
         lastSparkLon: 0,
-        animFrame: null
-    };
+        animFrame: null,
+      };
 
-    function initWatchSimulation(points) {
-        simRoute = points;
+      function precomputeChevrons() {
+        simChevrons = [];
+        if (!simRoute || simRoute.length < 2) return;
+
+        const cosLat = Math.cos((simRoute[0].lat * Math.PI) / 180);
+        let targetDist = 50.0;
+        let currentDist = 0.0;
+        let chevronIdx = 1;
+
+        for (let i = 0; i < simRoute.length - 1; i++) {
+          const p1 = simRoute[i];
+          const p2 = simRoute[i + 1];
+          const dx = (p2.lon - p1.lon) * 111319.5 * cosLat;
+          const dy = (p2.lat - p1.lat) * 111132.9;
+          const segLen = Math.hypot(dx, dy);
+          if (segLen < 0.1) continue;
+
+          const ux = dx / segLen;
+          const uy = dy / segLen;
+
+          while (targetDist <= currentDist + segLen) {
+            const t = (targetDist - currentDist) / segLen;
+            const cLat = p1.lat + t * (p2.lat - p1.lat);
+            const cLon = p1.lon + t * (p2.lon - p1.lon);
+            const isMajor = (chevronIdx % 5 === 0);
+
+            simChevrons.push({
+              lat: cLat,
+              lon: cLon,
+              ux: ux,
+              uy: uy,
+              isMajor: isMajor,
+              dist: targetDist,
+            });
+
+            chevronIdx++;
+            targetDist += 50.0;
+          }
+          currentDist += segLen;
+        }
+      }
+
+      function initWatchSimulation(points) {
+        simRoute = points.slice();
+        if (isReversed) {
+          simRoute.reverse();
+        }
+        precomputeChevrons();
         resetSimulationState();
         drawWatchScreen();
-    }
+      }
 
-    function resetSimulationState() {
+      function resetSimulationState() {
         if (simRoute.length < 2) return;
         simState.segIdx = 0;
         simState.segProgress = 0.0;
         simState.currLat = simRoute[0].lat;
         simState.currLon = simRoute[0].lon;
         simState.deviateMeters = 0;
-        simState.progressIdx = 0;
         simTrail = [{ lat: simRoute[0].lat, lon: simRoute[0].lon }];
         simSparks = [{ lat: simRoute[0].lat, lon: simRoute[0].lon }];
         simState.lastTrailLat = simRoute[0].lat;
@@ -936,81 +1145,102 @@
 
         // Calculate initial track heading
         const vLat = simRoute[1].lat - simRoute[0].lat;
-        const vLon = (simRoute[1].lon - simRoute[0].lon) * Math.cos(simRoute[0].lat * Math.PI / 180);
+        const vLon =
+          (simRoute[1].lon - simRoute[0].lon) * Math.cos((simRoute[0].lat * Math.PI) / 180);
         const initHeading = Math.atan2(vLon, vLat);
         simState.targetHeadingRad = initHeading;
         simState.renderHeadingRad = initHeading;
-        simHeadingSlider.value = Math.round((initHeading * 180 / Math.PI + 360) % 360);
+        simHeadingSlider.value = Math.round(((initHeading * 180) / Math.PI + 360) % 360);
         simHeadingVal.innerText = simHeadingSlider.value + '°';
 
         btnSimDeviate.innerText = 'Force Deviate 45m Right';
         btnSimDeviate.style.background = '#dc2626';
-    }
+      }
 
-    // Play / Pause controls
-    btnSimPlay.addEventListener('click', () => {
+      // Play / Pause controls
+      btnSimPlay.addEventListener('click', () => {
         if (!simRoute || simRoute.length < 2) {
-            btnLoadSample.click();
-            simState.isPlaying = true;
-            btnSimPlay.innerText = '⏸ Pause Simulation';
-            simState.lastTick = performance.now();
-            requestAnimationFrame(simAnimationLoop);
-            return;
+          btnLoadSample.click();
+          simState.isPlaying = true;
+          btnSimPlay.innerText = '⏸ Pause Simulation';
+          simState.lastTick = performance.now();
+          requestAnimationFrame(simAnimationLoop);
+          return;
         }
         if (simState.isPlaying) {
-            simState.isPlaying = false;
-            btnSimPlay.innerText = '▶ Resume Simulation';
-            if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
+          simState.isPlaying = false;
+          btnSimPlay.innerText = '▶ Resume Simulation';
+          if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
         } else {
-            if (simState.segIdx >= simRoute.length - 1) {
-                resetSimulationState();
-            }
-            simState.isPlaying = true;
-            btnSimPlay.innerText = '⏸ Pause Simulation';
-            simState.lastTick = performance.now();
-            requestAnimationFrame(simAnimationLoop);
+          if (simState.segIdx >= simRoute.length - 1) {
+            resetSimulationState();
+          }
+          simState.isPlaying = true;
+          btnSimPlay.innerText = '⏸ Pause Simulation';
+          simState.lastTick = performance.now();
+          requestAnimationFrame(simAnimationLoop);
         }
-    });
+      });
 
-    btnSimReset.addEventListener('click', () => {
+      btnSimReset.addEventListener('click', () => {
         simState.isPlaying = false;
         btnSimPlay.innerText = '▶ Start Run Simulation';
         if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
         resetSimulationState();
         drawWatchScreen();
-    });
+      });
 
-    // Off-course toggle
-    btnSimDeviate.addEventListener('click', () => {
+      // Off-course toggle
+      btnSimDeviate.addEventListener('click', () => {
         if (simState.deviateMeters === 0) {
-            simState.deviateMeters = 45; // 45m deviation (>35m threshold)
-            btnSimDeviate.innerText = 'Restore On-Course (0m)';
-            btnSimDeviate.style.background = '#059669';
+          simState.deviateMeters = 45; // 45m deviation (>35m threshold)
+          btnSimDeviate.innerText = 'Restore On-Course (0m)';
+          btnSimDeviate.style.background = '#059669';
         } else {
-            simState.deviateMeters = 0;
-            btnSimDeviate.innerText = 'Force Deviate 45m Right';
-            btnSimDeviate.style.background = '#dc2626';
+          simState.deviateMeters = 0;
+          btnSimDeviate.innerText = 'Force Deviate 45m Right';
+          btnSimDeviate.style.background = '#dc2626';
         }
         drawWatchScreen();
-    });
+      });
 
-    if (simColorModeSelect) {
-        simColorModeSelect.addEventListener('change', () => {
-            drawWatchScreen();
-        });
-    }
-
-    // Manual heading trim
-    simHeadingSlider.addEventListener('input', (e) => {
+      // Manual heading trim
+      simHeadingSlider.addEventListener('input', (e) => {
         const deg = parseFloat(e.target.value);
         simHeadingVal.innerText = deg + '°';
-        simState.targetHeadingRad = deg * Math.PI / 180;
+        simState.targetHeadingRad = (deg * Math.PI) / 180;
         simState.manualHeading = true;
         drawWatchScreen();
-    });
+      });
 
-    // Animation loop
-    function simAnimationLoop(now) {
+      // Map view range (zoom) control
+      simRangeSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        simRangeVal.innerText = val + 'm';
+        simState.mapRange = val;
+        drawWatchScreen();
+      });
+
+      // Route direction reverse toggle
+      btnSimDirection.addEventListener('click', () => {
+        isReversed = !isReversed;
+        if (isReversed) {
+          btnSimDirection.innerText = '⇄ Direction: Reverse';
+          btnSimDirection.style.background = '#8b5cf6';
+        } else {
+          btnSimDirection.innerText = '⇄ Direction: Forward';
+          btnSimDirection.style.background = '#2563eb';
+        }
+        if (simRoute && simRoute.length >= 2) {
+          simRoute.reverse();
+          precomputeChevrons();
+          resetSimulationState();
+          drawWatchScreen();
+        }
+      });
+
+      // Animation loop
+      function simAnimationLoop(now) {
         if (!simState.isPlaying) return;
         const dt = Math.min((now - (simState.lastTick || now)) / 1000, 0.1);
         simState.lastTick = now;
@@ -1029,14 +1259,14 @@
         drawWatchScreen();
 
         simState.animFrame = requestAnimationFrame(simAnimationLoop);
-    }
+      }
 
-    // Runner trajectory progression
-    function advanceRunner(distanceM) {
+      // Runner trajectory progression
+      function advanceRunner(distanceM) {
         if (simState.segIdx >= simRoute.length - 1) {
-            simState.isPlaying = false;
-            btnSimPlay.innerText = '▶ Replay Simulation';
-            return;
+          simState.isPlaying = false;
+          btnSimPlay.innerText = '▶ Replay Simulation';
+          return;
         }
 
         const pA = simRoute[simState.segIdx];
@@ -1044,20 +1274,20 @@
         const segLen = calcDistanceMeters(pA, pB);
 
         if (segLen <= 0.001) {
-            simState.segIdx++;
-            simState.segProgress = 0;
-            return;
+          simState.segIdx++;
+          simState.segProgress = 0;
+          return;
         }
 
         simState.segProgress += distanceM / segLen;
         if (simState.segProgress >= 1.0) {
-            simState.segProgress = 0;
-            simState.segIdx++;
-            if (simState.segIdx >= simRoute.length - 1) {
-                simState.isPlaying = false;
-                btnSimPlay.innerText = '▶ Replay Simulation';
-                return;
-            }
+          simState.segProgress = 0;
+          simState.segIdx++;
+          if (simState.segIdx >= simRoute.length - 1) {
+            simState.isPlaying = false;
+            btnSimPlay.innerText = '▶ Replay Simulation';
+            return;
+          }
         }
 
         // Interpolated runner base position
@@ -1069,286 +1299,280 @@
 
         // Track heading
         const vLat = currB.lat - currA.lat;
-        const vLon = (currB.lon - currA.lon) * Math.cos(baseLat * Math.PI / 180);
+        const vLon = (currB.lon - currA.lon) * Math.cos((baseLat * Math.PI) / 180);
         const naturalHeading = Math.atan2(vLon, vLat);
 
         if (!simState.manualHeading) {
-            simState.targetHeadingRad = naturalHeading;
-            const deg = Math.round((naturalHeading * 180 / Math.PI + 360) % 360);
-            simHeadingSlider.value = deg;
-            simHeadingVal.innerText = deg + '°';
+          simState.targetHeadingRad = naturalHeading;
+          const deg = Math.round(((naturalHeading * 180) / Math.PI + 360) % 360);
+          simHeadingSlider.value = deg;
+          simHeadingVal.innerText = deg + '°';
         }
 
         // Apply intentional lateral deviation if enabled
         if (simState.deviateMeters > 0) {
-            const rightAngle = simState.renderHeadingRad + Math.PI / 2;
-            const dLat = (simState.deviateMeters * Math.cos(rightAngle)) / 111132.9;
-            const dLon = (simState.deviateMeters * Math.sin(rightAngle)) / (111319.5 * Math.cos(baseLat * Math.PI / 180));
-            simState.currLat = baseLat + dLat;
-            simState.currLon = baseLon + dLon;
+          const rightAngle = simState.renderHeadingRad + Math.PI / 2;
+          const dLat = (simState.deviateMeters * Math.cos(rightAngle)) / 111132.9;
+          const dLon =
+            (simState.deviateMeters * Math.sin(rightAngle)) /
+            (111319.5 * Math.cos((baseLat * Math.PI) / 180));
+          simState.currLat = baseLat + dLat;
+          simState.currLon = baseLon + dLon;
         } else {
-            simState.currLat = baseLat;
-            simState.currLon = baseLon;
+          simState.currLat = baseLat;
+          simState.currLon = baseLon;
         }
 
         // (1) Record continuous trail points (every >2.5m, up to 80 points covering ~200m)
         const dLatM = (simState.currLat - simState.lastTrailLat) * 111132.9;
-        const dLonM = (simState.currLon - simState.lastTrailLon) * 111319.5 * Math.cos(baseLat * Math.PI / 180);
+        const dLonM =
+          (simState.currLon - simState.lastTrailLon) *
+          111319.5 *
+          Math.cos((baseLat * Math.PI) / 180);
         if (dLatM * dLatM + dLonM * dLonM > 6.25 || simTrail.length === 0) {
-            simTrail.push({ lat: simState.currLat, lon: simState.currLon });
-            if (simTrail.length > 80) {
-                simTrail.shift();
-            }
-            simState.lastTrailLat = simState.currLat;
-            simState.lastTrailLon = simState.currLon;
+          simTrail.push({ lat: simState.currLat, lon: simState.currLon });
+          if (simTrail.length > 80) {
+            simTrail.shift();
+          }
+          simState.lastTrailLat = simState.currLat;
+          simState.lastTrailLon = simState.currLon;
         }
 
         // (2) Record 20-meter milestone sparks (plants dot at ground position, fades in place, max 10 dots)
         const dSparkLatM = (simState.currLat - simState.lastSparkLat) * 111132.9;
-        const dSparkLonM = (simState.currLon - simState.lastSparkLon) * 111319.5 * Math.cos(baseLat * Math.PI / 180);
-        if (dSparkLatM * dSparkLatM + dSparkLonM * dSparkLonM >= 400.0) { // 20m^2 = 400.0
-            simSparks.push({ lat: simState.currLat, lon: simState.currLon });
-            if (simSparks.length > 10) {
-                simSparks.shift();
-            }
-            simState.lastSparkLat = simState.currLat;
-            simState.lastSparkLon = simState.currLon;
+        const dSparkLonM =
+          (simState.currLon - simState.lastSparkLon) *
+          111319.5 *
+          Math.cos((baseLat * Math.PI) / 180);
+        if (dSparkLatM * dSparkLatM + dSparkLonM * dSparkLonM >= 400.0) {
+          // 20m^2 = 400.0
+          simSparks.push({ lat: simState.currLat, lon: simState.currLon });
+          if (simSparks.length > 10) {
+            simSparks.shift();
+          }
+          simState.lastSparkLat = simState.currLat;
+          simState.lastSparkLon = simState.currLon;
         }
-    }
+      }
 
-    // 1:1 Implementation of Monkey C compute() & onUpdate()
-    function drawWatchScreen() {
+      // 1:1 Implementation of Monkey C compute() & onUpdate()
+      function drawWatchScreen() {
         const dc = watchCtx;
         const w = 416;
         const h = 416;
         const cx = 208;
         const cy = 208;
-        const ZOOM_SCALE = 1.2;
+        const mapRange = simState.mapRange || 175;
+        const ZOOM_SCALE = cx / mapRange;
         const OFF_COURSE_THRESHOLD_M = 35.0;
-        const CULL_DIST_SQ = 48400.0; // 220m^2
+        const CULL_DIST_SQ = Math.pow(mapRange * 1.3, 2);
 
         // 1. Clear background (AMOLED deep black)
         dc.fillStyle = '#000000';
         dc.fillRect(0, 0, w, h);
 
         if (simRoute.length < 2) {
-            dc.fillStyle = '#ffffff';
-            dc.font = '20px sans-serif';
-            dc.textAlign = 'center';
-            dc.fillText('NO ROUTE', cx, cy - 10);
-            return;
+          dc.fillStyle = '#ffffff';
+          dc.font = '20px sans-serif';
+          dc.textAlign = 'center';
+          dc.fillText('NO ROUTE', cx, cy - 10);
+          return;
         }
 
         const currLat = simState.currLat;
         const currLon = simState.currLon;
-        const cosLat = Math.cos(currLat * Math.PI / 180);
+        const cosLat = Math.cos((currLat * Math.PI) / 180);
         const heading = simState.renderHeadingRad;
         const sinH = Math.sin(heading);
         const cosH = Math.cos(heading);
 
-        // 2. Compute Cross-Track Distance with progress-aware search window
+        // 2. Compute Cross-Track Distance: single-pass nearest distance to full route
         const N = simRoute.length;
-        const winStart = Math.max(0, simState.progressIdx - 2);
-        const winEnd = Math.min(N - 2, simState.progressIdx + 5);
+        let minDist = Infinity;
 
-        let localMinDist = Infinity;
-        let localBestIdx = simState.progressIdx;
-        let localBestT = 0;
+        for (let i = 0; i < N - 1; i++) {
+          const pA = simRoute[i];
+          const pB = simRoute[i + 1];
 
-        for (let i = winStart; i <= winEnd; i++) {
-            const pA = simRoute[i];
-            const pB = simRoute[i + 1];
+          const ax = (pA.lon - currLon) * 111319.5 * cosLat;
+          const ay = (pA.lat - currLat) * 111132.9;
+          const bx = (pB.lon - currLon) * 111319.5 * cosLat;
+          const by = (pB.lat - currLat) * 111132.9;
 
-            const ax = (pA.lon - currLon) * 111319.5 * cosLat;
-            const ay = (pA.lat - currLat) * 111132.9;
-            const bx = (pB.lon - currLon) * 111319.5 * cosLat;
-            const by = (pB.lat - currLat) * 111132.9;
+          const vx = bx - ax;
+          const vy = by - ay;
+          const segLenSq = vx * vx + vy * vy;
 
-            const vx = bx - ax;
-            const vy = by - ay;
-            const segLenSq = vx * vx + vy * vy;
+          let d = 0;
+          if (segLenSq < 0.001) {
+            d = Math.hypot(ax, ay);
+          } else {
+            const t = Math.max(0, Math.min(1, (-ax * vx - ay * vy) / segLenSq));
+            d = Math.hypot(ax + t * vx, ay + t * vy);
+          }
 
-            let d = 0;
-            let t = 0;
-            if (segLenSq < 0.001) {
-                d = Math.hypot(ax, ay);
-            } else {
-                t = (-ax * vx - ay * vy) / segLenSq;
-                const tClamped = Math.max(0, Math.min(1, t));
-                const qx = ax + tClamped * vx;
-                const qy = ay + tClamped * vy;
-                d = Math.hypot(qx, qy);
-            }
-
-            if (d < localMinDist) {
-                localMinDist = d;
-                localBestIdx = i;
-                localBestT = t;
-            }
+          if (d < minDist) {
+            minDist = d;
+          }
         }
 
-        let finalDist = localMinDist;
+        const isOffCourse = minDist > OFF_COURSE_THRESHOLD_M;
 
-        if (localMinDist <= 40.0) {
-            if (localBestIdx > simState.progressIdx) {
-                simState.progressIdx = localBestIdx;
-            } else if (localBestIdx === simState.progressIdx && localBestT >= 0.8 && simState.progressIdx < N - 2) {
-                simState.progressIdx = simState.progressIdx + 1;
-            }
-            finalDist = localMinDist;
-        } else {
-            let globalMinDist = Infinity;
-            let globalBestIdx = 0;
-            for (let g = 0; g < N - 1; g++) {
-                const pA = simRoute[g];
-                const pB = simRoute[g + 1];
-                const gax = (pA.lon - currLon) * 111319.5 * cosLat;
-                const gay = (pA.lat - currLat) * 111132.9;
-                const gbx = (pB.lon - currLon) * 111319.5 * cosLat;
-                const gby = (pB.lat - currLat) * 111132.9;
-                const gvx = gbx - gax;
-                const gvy = gby - gay;
-                const glenSq = gvx * gvx + gvy * gvy;
-                let gd = 0;
-                if (glenSq < 0.001) {
-                    gd = Math.hypot(gax, gay);
-                } else {
-                    const gt = Math.max(0, Math.min(1, (-gax * gvx - gay * gvy) / glenSq));
-                    gd = Math.hypot(gax + gt * gvx, gay + gt * gvy);
-                }
-                if (gd < globalMinDist) {
-                    globalMinDist = gd;
-                    globalBestIdx = g;
-                }
-            }
-
-            if (globalMinDist < 20.0 && globalBestIdx > simState.progressIdx) {
-                simState.progressIdx = globalBestIdx;
-                finalDist = globalMinDist;
-            } else {
-                finalDist = localMinDist;
-            }
-        }
-
-        const isOffCourse = finalDist > OFF_COURSE_THRESHOLD_M;
-
-        // 3. Render route lines
-        const colorMode = simColorModeSelect ? simColorModeSelect.value : 'split';
+        // 3. Render route lines (Uniform Electric Cyan 4px)
+        dc.strokeStyle = '#00e5ff';
+        dc.lineWidth = 4;
+        dc.lineCap = 'round';
+        dc.lineJoin = 'round';
 
         for (let i = 0; i < simRoute.length - 1; i++) {
-            const pA = simRoute[i];
-            const pB = simRoute[i + 1];
+          const pA = simRoute[i];
+          const pB = simRoute[i + 1];
 
-            const ax = (pA.lon - currLon) * 111319.5 * cosLat;
-            const ay = (pA.lat - currLat) * 111132.9;
-            const bx = (pB.lon - currLon) * 111319.5 * cosLat;
-            const by = (pB.lat - currLat) * 111132.9;
+          const ax = (pA.lon - currLon) * 111319.5 * cosLat;
+          const ay = (pA.lat - currLat) * 111132.9;
+          const bx = (pB.lon - currLon) * 111319.5 * cosLat;
+          const by = (pB.lat - currLat) * 111132.9;
 
-            // Viewport culling
-            if ((ax * ax + ay * ay > CULL_DIST_SQ) && (bx * bx + by * by > CULL_DIST_SQ)) {
-                continue;
-            }
+          // Viewport culling
+          if (ax * ax + ay * ay > CULL_DIST_SQ && bx * bx + by * by > CULL_DIST_SQ) {
+            continue;
+          }
 
-            // 2D Rotation matrix (Heading-Up projection)
-            const sx1 = cx + (ax * cosH - ay * sinH) * ZOOM_SCALE;
-            const sy1 = cy - (ay * cosH + ax * sinH) * ZOOM_SCALE;
-            const sx2 = cx + (bx * cosH - by * sinH) * ZOOM_SCALE;
-            const sy2 = cy - (by * cosH + bx * sinH) * ZOOM_SCALE;
+          // 2D Rotation matrix (Heading-Up projection)
+          const sx1 = cx + (ax * cosH - ay * sinH) * ZOOM_SCALE;
+          const sy1 = cy - (ay * cosH + ax * sinH) * ZOOM_SCALE;
+          const sx2 = cx + (bx * cosH - by * sinH) * ZOOM_SCALE;
+          const sy2 = cy - (by * cosH + bx * sinH) * ZOOM_SCALE;
+
+          dc.beginPath();
+          dc.moveTo(sx1, sy1);
+          dc.lineTo(sx2, sy2);
+          dc.stroke();
+        }
+
+        // 4. Render directional chevrons (50m intervals, 250m multiples are large & prominent)
+        for (let k = 0; k < simChevrons.length; k++) {
+          const ch = simChevrons[k];
+          const ax = (ch.lon - currLon) * 111319.5 * cosLat;
+          const ay = (ch.lat - currLat) * 111132.9;
+
+          if (ax * ax + ay * ay > CULL_DIST_SQ) continue;
+
+          const sx = cx + (ax * cosH - ay * sinH) * ZOOM_SCALE;
+          const sy = cy - (ay * cosH + ax * sinH) * ZOOM_SCALE;
+
+          if (sx < -25 || sx > w + 25 || sy < -25 || sy > h + 25) continue;
+
+          // 2D Rotation of unit vector into screen coordinates
+          const sux = ch.ux * cosH - ch.uy * sinH;
+          const suy = -(ch.uy * cosH + ch.ux * sinH);
+          const snx = -suy;
+          const sny = sux;
+
+          dc.save();
+          dc.strokeStyle = '#00e5ff';
+          dc.lineCap = 'round';
+          dc.lineJoin = 'round';
+
+          if (ch.isMajor) {
+            // Major 250m landmark: prominent large single chevron
+            dc.lineWidth = 4;
+
+            const tipX = sx + sux * 9.0;
+            const tipY = sy + suy * 9.0;
+            const leftX = sx - sux * 6.0 + snx * 10.0;
+            const leftY = sy - suy * 6.0 + sny * 10.0;
+            const rightX = sx - sux * 6.0 - snx * 10.0;
+            const rightY = sy - suy * 6.0 - sny * 10.0;
 
             dc.beginPath();
-            dc.moveTo(sx1, sy1);
-            dc.lineTo(sx2, sy2);
-            dc.lineCap = 'round';
-            dc.lineJoin = 'round';
-
-            if (colorMode === 'all-cyan') {
-                dc.strokeStyle = '#00e5ff';
-                dc.lineWidth = 4;
-            } else {
-                if (i < simState.progressIdx) {
-                    // Completed segment: Warm Golden Amber (4px)
-                    dc.strokeStyle = '#f59e0b';
-                    dc.lineWidth = 4;
-                } else {
-                    // Upcoming segment: Electric Cyan (4px)
-                    dc.strokeStyle = '#00e5ff';
-                    dc.lineWidth = 4;
-                }
-            }
+            dc.moveTo(leftX, leftY);
+            dc.lineTo(tipX, tipY);
+            dc.lineTo(rightX, rightY);
             dc.stroke();
+          } else {
+            // Minor 50m chevron: discreet single chevron
+            dc.lineWidth = 2;
 
-            // Completed route node dots
-            if (colorMode !== 'all-cyan' && i < simState.progressIdx) {
-                dc.fillStyle = '#f59e0b';
-                dc.beginPath();
-                dc.arc(sx1, sy1, 2.5, 0, Math.PI * 2);
-                dc.fill();
-            }
+            const tipX = sx + sux * 5.0;
+            const tipY = sy + suy * 5.0;
+            const leftX = sx - sux * 3.0 + snx * 5.0;
+            const leftY = sy - suy * 3.0 + sny * 5.0;
+            const rightX = sx - sux * 3.0 - snx * 5.0;
+            const rightY = sy - suy * 3.0 - sny * 5.0;
+
+            dc.beginPath();
+            dc.moveTo(leftX, leftY);
+            dc.lineTo(tipX, tipY);
+            dc.lineTo(rightX, rightY);
+            dc.stroke();
+          }
+          dc.restore();
         }
 
         // 4. Render firefly comet stream & 20m milestone sparks
         const M = simTrail.length;
         if (M > 1) {
-            // (1) Smooth tapered comet line (2.0px/0.35 -> 5.5px/0.95)
-            for (let t = 0; t < M - 1; t++) {
-                const p1 = simTrail[t];
-                const p2 = simTrail[t + 1];
-                const ratio = t / (M - 1);
+          // (1) Smooth tapered comet line (2.0px/0.35 -> 5.5px/0.95)
+          for (let t = 0; t < M - 1; t++) {
+            const p1 = simTrail[t];
+            const p2 = simTrail[t + 1];
+            const ratio = t / (M - 1);
 
-                const tax1 = (p1.lon - currLon) * 111319.5 * cosLat;
-                const tay1 = (p1.lat - currLat) * 111132.9;
-                const tax2 = (p2.lon - currLon) * 111319.5 * cosLat;
-                const tay2 = (p2.lat - currLat) * 111132.9;
+            const tax1 = (p1.lon - currLon) * 111319.5 * cosLat;
+            const tay1 = (p1.lat - currLat) * 111132.9;
+            const tax2 = (p2.lon - currLon) * 111319.5 * cosLat;
+            const tay2 = (p2.lat - currLat) * 111132.9;
 
-                const tsx1 = cx + (tax1 * cosH - tay1 * sinH) * ZOOM_SCALE;
-                const tsy1 = cy - (tay1 * cosH + tax1 * sinH) * ZOOM_SCALE;
-                const tsx2 = cx + (tax2 * cosH - tay2 * sinH) * ZOOM_SCALE;
-                const tsy2 = cy - (tay2 * cosH + tax2 * sinH) * ZOOM_SCALE;
+            const tsx1 = cx + (tax1 * cosH - tay1 * sinH) * ZOOM_SCALE;
+            const tsy1 = cy - (tay1 * cosH + tax1 * sinH) * ZOOM_SCALE;
+            const tsx2 = cx + (tax2 * cosH - tay2 * sinH) * ZOOM_SCALE;
+            const tsy2 = cy - (tay2 * cosH + tax2 * sinH) * ZOOM_SCALE;
 
-                const segWidth = 2.0 + 3.5 * Math.pow(ratio, 1.2);
-                const segAlpha = 0.35 + 0.60 * ratio;
+            const segWidth = 2.0 + 3.5 * Math.pow(ratio, 1.2);
+            const segAlpha = 0.35 + 0.6 * ratio;
 
-                dc.beginPath();
-                dc.strokeStyle = `rgba(163, 230, 53, ${segAlpha.toFixed(2)})`;
-                dc.lineWidth = segWidth;
-                dc.lineCap = 'round';
-                dc.lineJoin = 'round';
-                dc.moveTo(tsx1, tsy1);
-                dc.lineTo(tsx2, tsy2);
-                dc.stroke();
+            dc.beginPath();
+            dc.strokeStyle = `rgba(163, 230, 53, ${segAlpha.toFixed(2)})`;
+            dc.lineWidth = segWidth;
+            dc.lineCap = 'round';
+            dc.lineJoin = 'round';
+            dc.moveTo(tsx1, tsy1);
+            dc.lineTo(tsx2, tsy2);
+            dc.stroke();
+          }
+
+          // (2) 20m milestone sparks (10 dots covering 200m, stationary in ground coordinates, fading in place)
+          const S = simSparks.length;
+          if (S > 0) {
+            for (let s = 0; s < S; s++) {
+              const sp = simSparks[s];
+              const ratio = (s + 1) / S; // 0.0 (oldest) -> 1.0 (newest)
+
+              const sax = (sp.lon - currLon) * 111319.5 * cosLat;
+              const say = (sp.lat - currLat) * 111132.9;
+
+              if (sax * sax + say * say > CULL_DIST_SQ) continue;
+
+              const ssx = cx + (sax * cosH - say * sinH) * ZOOM_SCALE;
+              const ssy = cy - (say * cosH + sax * sinH) * ZOOM_SCALE;
+
+              const alpha = 0.15 + 0.8 * ratio;
+              const radius = 2.0 + 1.8 * ratio;
+
+              // Outer green halo
+              dc.fillStyle = `rgba(163, 230, 53, ${(alpha * 0.45).toFixed(2)})`;
+              dc.beginPath();
+              dc.arc(ssx, ssy, radius + 2.2, 0, Math.PI * 2);
+              dc.fill();
+
+              // Inner bright white spark core (20m distance gauge)
+              dc.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
+              dc.beginPath();
+              dc.arc(ssx, ssy, radius * 0.65, 0, Math.PI * 2);
+              dc.fill();
             }
-
-            // (2) 20m milestone sparks (10 dots covering 200m, stationary in ground coordinates, fading in place)
-            const S = simSparks.length;
-            if (S > 0) {
-                for (let s = 0; s < S; s++) {
-                    const sp = simSparks[s];
-                    const ratio = (s + 1) / S; // 0.0 (oldest) -> 1.0 (newest)
-
-                    const sax = (sp.lon - currLon) * 111319.5 * cosLat;
-                    const say = (sp.lat - currLat) * 111132.9;
-
-                    if (sax * sax + say * say > CULL_DIST_SQ) continue;
-
-                    const ssx = cx + (sax * cosH - say * sinH) * ZOOM_SCALE;
-                    const ssy = cy - (say * cosH + sax * sinH) * ZOOM_SCALE;
-
-                    const alpha = 0.15 + 0.80 * ratio;
-                    const radius = 2.0 + 1.8 * ratio;
-
-                    // Outer green halo
-                    dc.fillStyle = `rgba(163, 230, 53, ${(alpha * 0.45).toFixed(2)})`;
-                    dc.beginPath();
-                    dc.arc(ssx, ssy, radius + 2.2, 0, Math.PI * 2);
-                    dc.fill();
-
-                    // Inner bright white spark core (20m distance gauge)
-                    dc.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
-                    dc.beginPath();
-                    dc.arc(ssx, ssy, radius * 0.65, 0, Math.PI * 2);
-                    dc.fill();
-                }
-            }
+          }
         }
 
         // 5. Render runner cursor: GPS Navigation Chevron in bioluminescent lime green
@@ -1380,33 +1604,32 @@
 
         // 6. Off-course alert banner
         if (isOffCourse) {
-            const bannerW = 230;
-            const bannerH = 36;
-            const bannerX = cx - bannerW / 2;
-            const bannerY = 26;
+          const bannerW = 230;
+          const bannerH = 36;
+          const bannerX = cx - bannerW / 2;
+          const bannerY = 26;
 
-            dc.fillStyle = '#dc2626';
-            roundRect(dc, bannerX, bannerY, bannerW, bannerH, 6);
-            dc.fill();
+          dc.fillStyle = '#dc2626';
+          roundRect(dc, bannerX, bannerY, bannerW, bannerH, 6);
+          dc.fill();
 
-            dc.fillStyle = '#ffffff';
-            dc.font = 'bold 15px -apple-system, sans-serif';
-            dc.textAlign = 'center';
-            dc.fillText(`OFF COURSE (+${Math.round(finalDist)}m)`, cx, bannerY + 23);
+          dc.fillStyle = '#ffffff';
+          dc.font = 'bold 15px -apple-system, sans-serif';
+          dc.textAlign = 'center';
+          dc.fillText(`OFF COURSE (+${Math.round(minDist)}m)`, cx, bannerY + 23);
         }
 
         // Update live metrics readouts
-        readoutHeading.innerText = `${Math.round((heading * 180 / Math.PI + 360) % 360)}°`;
-        readoutCtd.innerText = `${finalDist.toFixed(1)} m`;
-        readoutIdx.innerText = `${simState.progressIdx} / ${simRoute.length - 1}`;
+        readoutHeading.innerText = `${Math.round(((heading * 180) / Math.PI + 360) % 360)}°`;
+        readoutCtd.innerText = `${minDist.toFixed(1)} m`;
         if (isOffCourse) {
-            readoutStatus.innerHTML = `<span style="color: #ef4444;">🚨 OFF COURSE (+${Math.round(finalDist)}m)</span>`;
+          readoutStatus.innerHTML = `<span style="color: #ef4444;">🚨 OFF COURSE (+${Math.round(minDist)}m)</span>`;
         } else {
-            readoutStatus.innerHTML = `<span style="color: #84cc16;">✓ ON COURSE</span>`;
+          readoutStatus.innerHTML = `<span style="color: #84cc16;">✓ ON COURSE</span>`;
         }
-    }
+      }
 
-    function roundRect(ctx, x, y, width, height, radius) {
+      function roundRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
         ctx.lineTo(x + width - radius, y);
@@ -1418,8 +1641,7 @@
         ctx.lineTo(x, y + radius);
         ctx.quadraticCurveTo(x, y, x + radius, y);
         ctx.closePath();
-    }
-</script>
-
-</body>
+      }
+    </script>
+  </body>
 </html>

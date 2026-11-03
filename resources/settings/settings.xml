@@ -2,5 +2,14 @@
     <setting propertyKey="@Properties.routeString" title="@Strings.RouteStringTitle" prompt="@Strings.RouteStringPrompt">
         <settingConfig type="alphaNumeric" maxLength="2048" />
     </setting>
+    <setting propertyKey="@Properties.mapRange" title="@Strings.MapRangeTitle" prompt="@Strings.MapRangePrompt">
+        <settingConfig type="numeric" min="50" max="1000" errorMessage="@Strings.MapRangeError" />
+    </setting>
+    <setting propertyKey="@Properties.routeDirection" title="@Strings.RouteDirectionTitle" prompt="@Strings.RouteDirectionPrompt">
+        <settingConfig type="list">
+            <listEntry value="0">@Strings.DirectionForward</listEntry>
+            <listEntry value="1">@Strings.DirectionReverse</listEntry>
+        </settingConfig>
+    </setting>
 </settings>
 

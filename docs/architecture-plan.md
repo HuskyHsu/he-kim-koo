@@ -54,9 +54,10 @@ flowchart TD
 - **Object Overhead**: Using standard `Array<Array<Double>>` or `Array<Location>` incurs tens of kilobytes in object pointer overhead and triggers frequent garbage collection (GC), causing Out Of Memory (OOM) crashes.
 - **Flat Microdegree Solution**: Coordinates are stored in a single flat `Array<Number>`, where even indices store latitude and odd indices store longitude in microdegrees ($10^{-5}$ degrees, e.g., $25.03300^\circ \to 2503300$). A 120-point route requires only 240 32-bit integers, consuming $< 1\text{KB}$ heap space.
 
-### 2.2 Electronic Compass, Heading-Up Projection & Angular Exponential Smoothing
-- Garmin Venu 2 Plus features a hardware 3-axis electronic compass.
-- `Activity.Info.currentHeading` provides GPS bearing when in motion and seamlessly switches to the hardware compass when stationary.
+### 2.2 Speed-Aware Dynamic Heading, Heading-Up Projection & Angular Exponential Smoothing
+- **Speed-Aware Dynamic Heading**:
+  - In motion (`currentSpeed > 0.8 m/s`), prioritizes `Activity.Info.track` (GPS Ground Course / Direction of Travel) over the electronic compass. This ensures the Heading-Up perspective strictly aligns with human forward running movement, eliminating wrist-tilt bias from wearing the watch on the left or right wrist.
+  - When stationary (`currentSpeed <= 0.8 m/s`), falls back to `Activity.Info.currentHeading` (hardware 3-axis electronic compass) so runners can orient themselves while standing still.
 - **Angular Exponential Smoothing**:
   To prevent jarring perspective snaps when making sharp $90^\circ$ turns or experiencing transient GPS heading jitter, an angular smoothing filter with $[-\pi, +\pi]$ circular difference wrapping is implemented. It smooths rotation toward the target heading by ~40% per second.
 
@@ -67,26 +68,31 @@ flowchart TD
    - **Trailing Wake (80-point stream + 20m ground-locked sparks)**:
      - **Comet Stream Line**: 80-point circular ring buffer covering ~200 meters. Tapers smoothly from 5.0px near the runner down to 1.8px at the tail end, providing silky cornering visualization.
      - **20m Milestone Sparks (10 dots covering 200m)**: Points are locked to absolute geographic coordinates (Ground-Locked Coordinates). When the runner advances every 20.0 meters, a spark is planted on the ground and **remains stationary in place**, fading out gracefully over distance/time. Runners can instantly gauge running distance ($10 \times 20\text{m} = 200\text{m}$).
-   - **Upcoming Route Blueprint**: Electric Cyan (`COLOR_BLUE` / `#00e5ff`, 4px width), high-contrast blueprint guiding the runner forward.
-   - **Completed Route Artwork**: Warm Golden Amber (`COLOR_ORANGE` / `#f59e0b`, 4px width with milestone node dots), representing the finished geometric art illuminated by the firefly.
+   - **Route Blueprint (Unified Full Course)**: Electric Cyan (`COLOR_BLUE` / `#00e5ff`, 4px width), high-contrast blueprint guiding the runner forward. Completed segments retain the same cyan color to eliminate state tracking and redundant data processing.
+   - **Hierarchical Directional Chevrons (50m & 250m Gauge)**: Chevrons rendered along the cumulative route in matching Electric Cyan (`#00e5ff`). Minor chevrons (`>`, width 10px, 2px pen) appear every 50m, while major landmark chevrons (`>`, bold single chevron, width 20px, 4px pen) appear every 250m ($50\text{m} \times 5$). Runners can instantly gauge distances by counting the prominent 250m markers.
+   - **Forward / Reverse Direction Inversion**: Configurable in App Settings (`routeDirection`: 0 = Forward, 1 = Reverse). Reverses the coordinate array in-place during `reloadRoute()` with zero runtime overhead.
 
-### 2.4 Complex GPS Art Handling
-1. **Corner Preservation**:
-   - Critical text strokes and cartoon facial features in GPS art can be flattened by traditional Ramer-Douglas-Peucker (RDP) decimation.
+### 2.4 High-Efficiency Route Distance Calculation
+1. **Single-Pass Nearest Segment Search**:
+   - Computes minimum Euclidean distance to all route segments in a single pass without maintaining segmented progress indexes.
+   - Eliminates out-of-order segment jumps and simplifies GPS data handling.
+2. **Corner Preservation**:
    - The web converter calculates turning angles prior to simplification: any vertex with an angle $> 45^\circ$ is permanently locked as an anchor point.
-2. **Progress-Aware Search Window**:
-   - GPS art frequently contains loops, self-intersections, and out-and-back segments on the same street.
-   - `compute()` restricts local nearest-point search to `[mProgressIdx - 2, mProgressIdx + 5]`, preventing premature snapping to future laps. A global search is only invoked when the runner is genuinely off-track or taking a shortcut.
 
-### 2.5 Viewport Culling
-- Fixed scale: `ZOOM_SCALE = 1.2f` (1 meter = 1.2 pixels; 416x416 round screen covers a radius of ~173 meters).
-- Rendering optimization: Line segments with both endpoints exceeding 220 meters from the runner are culled before matrix multiplication, drastically reducing CPU load and AMOLED power consumption.
+### 2.5 Configurable Map View Range & Viewport Culling
+- **User-Configurable Map Range (`mapRange`)**: Configurable in Garmin Connect App Settings (50m to 1000m, default 175m). Dynamic zoom scale `zoomScale = (width / 2) / mapRange` ensures any Garmin screen radius maps precisely to the runner's preferred distance in meters.
+- **Rendering Optimization (Viewport Culling)**: Line segments and sparks exceeding `mapRange * 1.30` from the runner are culled before matrix multiplication, drastically reducing CPU load and AMOLED power consumption.
+
+### 2.6 Initial Waiting State Full-Route Thumbnail
+- In the initial state prior to acquiring a GPS lock (`!mHasEverHadGps`), the Data Field renders a full overview thumbnail of the GPS art centered underneath the "WAITING FOR GPS" header.
+- **Dynamic Scale-Based Point Decimation**: Coordinates are mapped to screen pixels based on the route bounding box. Successive vertices closer than 3 screen pixels ($\Delta^2 < 9$) are collapsed, dynamically simplifying dense point clusters while retaining geometric corners and endpoints with $O(1)$ memory.
+- **Start/End Anchors**: Highlights the route start point (bright green) and destination (crisp white) to give runners spatial awareness while waiting for satellite fix.
 
 ---
 
 ## 3. Project File Structure
 
-- `manifest.xml`: Connect IQ application declaration
+- `manifest.xml`: Connect IQ application declaration (declares `<iq:uses-permission id="Positioning"/>` for `Activity.Info.currentLocation`)
 - `monkey.jungle`: Monkey C build jungle configuration
 - `resources/settings/properties.xml`: Application properties definition
 - `resources/settings/settings.xml`: User settings form schema

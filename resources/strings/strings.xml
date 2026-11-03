@@ -2,6 +2,13 @@
     <string id="AppName">He-Kim-Koo (Route Field)</string>
     <string id="RouteStringTitle">Route String (Polyline)</string>
     <string id="RouteStringPrompt">Paste the encoded Google Polyline string generated from the web converter</string>
+    <string id="MapRangeTitle">Map View Range (Meters)</string>
+    <string id="MapRangePrompt">Visible radius from screen center in meters (50 - 1000m, default: 175)</string>
+    <string id="MapRangeError">Range must be between 50 and 1000 meters</string>
+    <string id="RouteDirectionTitle">Route Direction</string>
+    <string id="RouteDirectionPrompt">Select forward or reverse travel direction</string>
+    <string id="DirectionForward">Forward (Original)</string>
+    <string id="DirectionReverse">Reverse (Inverted)</string>
     <string id="NoRoute">NO ROUTE</string>
     <string id="PasteSettings">PASTE IN APP SETTINGS</string>
     <string id="WaitingGps">WAITING FOR GPS</string>
