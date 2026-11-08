@@ -38,6 +38,7 @@ class RouteDataField extends WatchUi.DataField {
     // Flat array: [lat0, lon0, ux10k0, uy10k0, ...]
     private var mChevrons as Array<Number> = [] as Array<Number>;
     private var mChevronCount as Number = 0;
+    private var mShowDirection as Boolean = true;
 
     // Real-time sensor & GPS state
     private var mHasGps as Boolean = false;
@@ -134,6 +135,18 @@ class RouteDataField extends WatchUi.DataField {
 
         var cullDist = mMapRange * 1.30f;
         mCullDistSq = cullDist * cullDist;
+
+        // 3. Load showDirection setting (whether to render directional chevrons)
+        try {
+            var showDirVal = Properties.getValue("showDirection");
+            if (showDirVal != null && showDirVal instanceof Boolean) {
+                mShowDirection = showDirVal;
+            } else {
+                mShowDirection = true;
+            }
+        } catch (e) {
+            mShowDirection = true;
+        }
 
         // Calculate route bounding box for thumbnail overview
         if (mPointCount >= 2) {
@@ -510,63 +523,65 @@ class RouteDataField extends WatchUi.DataField {
         }
 
         // 5. Render directional chevrons (50m intervals, 250m multiples are large & prominent)
-        for (var k = 0; k < mChevronCount; k++) {
-            var cIdx = k * 4;
-            var cLat = mChevrons[cIdx];
-            var cLon = mChevrons[cIdx + 1];
+        if (mShowDirection) {
+            for (var k = 0; k < mChevronCount; k++) {
+                var cIdx = k * 4;
+                var cLat = mChevrons[cIdx];
+                var cLon = mChevrons[cIdx + 1];
 
-            var ax = (cLon - mCurrLonMicro) * 1.113195f * mCosLat;
-            var ay = (cLat - mCurrLatMicro) * 1.111329f;
+                var ax = (cLon - mCurrLonMicro) * 1.113195f * mCosLat;
+                var ay = (cLat - mCurrLatMicro) * 1.111329f;
 
-            if (ax * ax + ay * ay > mCullDistSq) {
-                continue;
-            }
+                if (ax * ax + ay * ay > mCullDistSq) {
+                    continue;
+                }
 
-            var sx = cx + (ax * cosH - ay * sinH) * zoomScale;
-            var sy = cy - (ay * cosH + ax * sinH) * zoomScale;
+                var sx = cx + (ax * cosH - ay * sinH) * zoomScale;
+                var sy = cy - (ay * cosH + ax * sinH) * zoomScale;
 
-            if (sx < -25 || sx > w + 25 || sy < -25 || sy > h + 25) {
-                continue;
-            }
+                if (sx < -25 || sx > w + 25 || sy < -25 || sy > h + 25) {
+                    continue;
+                }
 
-            var ux = mChevrons[cIdx + 2].toFloat() / 10000.0f;
-            var uy = mChevrons[cIdx + 3].toFloat() / 10000.0f;
+                var ux = mChevrons[cIdx + 2].toFloat() / 10000.0f;
+                var uy = mChevrons[cIdx + 3].toFloat() / 10000.0f;
 
-            // 2D Rotation of unit vector into screen coordinates
-            var sux = (ux * cosH - uy * sinH);
-            var suy = -(uy * cosH + ux * sinH);
-            var snx = -suy;
-            var sny = sux;
+                // 2D Rotation of unit vector into screen coordinates
+                var sux = (ux * cosH - uy * sinH);
+                var suy = -(uy * cosH + ux * sinH);
+                var snx = -suy;
+                var sny = sux;
 
-            var isMajor = ((k + 1) % 5 == 0); // 250m, 500m, 750m, 1000m...
+                var isMajor = ((k + 1) % 5 == 0); // 250m, 500m, 750m, 1000m...
 
-            if (isMajor) {
-                // Major 250m landmark: prominent large single chevron in Electric Cyan (#00e5ff)
-                dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
-                dc.setPenWidth(4);
+                if (isMajor) {
+                    // Major 250m landmark: prominent large single chevron in Electric Cyan (#00e5ff)
+                    dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
+                    dc.setPenWidth(4);
 
-                var tipX = sx + sux * 9.0f;
-                var tipY = sy + suy * 9.0f;
-                var leftX = sx - sux * 6.0f + snx * 10.0f;
-                var leftY = sy - suy * 6.0f + sny * 10.0f;
-                var rightX = sx - sux * 6.0f - snx * 10.0f;
-                var rightY = sy - suy * 6.0f - sny * 10.0f;
-                dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
-                dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
-            } else {
-                // Minor 50m chevron: discreet small single chevron (span ±5px, pen width 2px)
-                dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
-                dc.setPenWidth(2);
+                    var tipX = sx + sux * 9.0f;
+                    var tipY = sy + suy * 9.0f;
+                    var leftX = sx - sux * 6.0f + snx * 10.0f;
+                    var leftY = sy - suy * 6.0f + sny * 10.0f;
+                    var rightX = sx - sux * 6.0f - snx * 10.0f;
+                    var rightY = sy - suy * 6.0f - sny * 10.0f;
+                    dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                    dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                } else {
+                    // Minor 50m chevron: discreet small single chevron (span ±5px, pen width 2px)
+                    dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
+                    dc.setPenWidth(2);
 
-                var tipX = sx + sux * 5.0f;
-                var tipY = sy + suy * 5.0f;
-                var leftX = sx - sux * 3.0f + snx * 5.0f;
-                var leftY = sy - suy * 3.0f + sny * 5.0f;
-                var rightX = sx - sux * 3.0f - snx * 5.0f;
-                var rightY = sy - suy * 3.0f - sny * 5.0f;
+                    var tipX = sx + sux * 5.0f;
+                    var tipY = sy + suy * 5.0f;
+                    var leftX = sx - sux * 3.0f + snx * 5.0f;
+                    var leftY = sy - suy * 3.0f + sny * 5.0f;
+                    var rightX = sx - sux * 3.0f - snx * 5.0f;
+                    var rightY = sy - suy * 3.0f - sny * 5.0f;
 
-                dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
-                dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                    dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                    dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                }
             }
         }
 
@@ -654,7 +669,7 @@ class RouteDataField extends WatchUi.DataField {
         }
 
         // 7. Render runner cursor: GPS Navigation Chevron in bioluminescent lime green (#a3e635)
-        
+
         // (1) Arrow body
         dc.setColor(COLOR_LIME, COLOR_LIME);
         var navDart = [

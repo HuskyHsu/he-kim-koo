@@ -9,6 +9,8 @@
     <string id="RouteDirectionPrompt">Select forward or reverse travel direction</string>
     <string id="DirectionForward">Forward (Original)</string>
     <string id="DirectionReverse">Reverse (Inverted)</string>
+    <string id="ShowDirectionTitle">Show Direction Chevrons</string>
+    <string id="ShowDirectionPrompt">Toggle display of 50m / 250m directional chevrons</string>
     <string id="NoRoute">NO ROUTE</string>
     <string id="PasteSettings">PASTE IN APP SETTINGS</string>
     <string id="WaitingGps">WAITING FOR GPS</string>

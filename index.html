@@ -454,11 +454,10 @@
                 ><span style="color: #00e5ff; font-weight: bold">●</span> Route Path (Electric Cyan
                 4px)</span
               >
+              <span><span style="color: #00e5ff; font-weight: bold">›</span> Chevrons (50m)</span>
               <span
-                ><span style="color: #00e5ff; font-weight: bold">›</span> Chevrons (50m)</span
-              >
-              <span
-                ><span style="color: #00e5ff; font-weight: bold; font-size: 1.1rem">›</span> Major Chevrons (250m)</span
+                ><span style="color: #00e5ff; font-weight: bold; font-size: 1.1rem">›</span> Major
+                Chevrons (250m)</span
               >
               <span
                 ><span style="color: #a3e635; font-weight: bold">▲</span> Firefly Cursor (Cold
@@ -485,6 +484,16 @@
                 style="background: #2563eb; padding: 6px 12px; font-size: 0.85rem"
               >
                 ⇄ Direction: Forward
+              </button>
+            </div>
+
+            <div class="control-row" style="margin-top: 10px">
+              <label>Direction Chevrons:</label>
+              <button
+                id="btnToggleDirection"
+                style="background: #059669; padding: 6px 12px; font-size: 0.85rem"
+              >
+                ✔ Chevrons: ON
               </button>
             </div>
 
@@ -603,9 +612,9 @@
             Locate <strong>He-Kim-Koo (Route Field)</strong> ➔ Open <strong>Settings</strong>.
           </li>
           <li>
-            Paste the copied string into <strong>Route String (Polyline)</strong>, choose
-            <strong>Route Direction</strong> (Forward or Reverse), optionally customize
-            <strong>Map View Range (Meters)</strong>, and tap Save.
+            Paste the copied string into <strong>Route String (Polyline)</strong>, configure
+            <strong>Show Direction Chevrons</strong>, choose <strong>Route Direction</strong>,
+            customise <strong>Map View Range</strong>, and tap Save.
           </li>
           <li>
             Start a "Run" activity on the watch; your GPS art will instantly render with real-time
@@ -1050,6 +1059,7 @@
       const simRangeSlider = document.getElementById('simRangeSlider');
       const simRangeVal = document.getElementById('simRangeVal');
       const btnSimDirection = document.getElementById('btnSimDirection');
+      const btnToggleDirection = document.getElementById('btnToggleDirection');
       const readoutHeading = document.getElementById('readoutHeading');
       const readoutCtd = document.getElementById('readoutCtd');
       const readoutStatus = document.getElementById('readoutStatus');
@@ -1068,6 +1078,7 @@
         renderHeadingRad: 0.0,
         manualHeading: false,
         mapRange: 175,
+        showDirection: true,
         deviateMeters: 0,
         isPlaying: false,
         lastTrailLat: 0,
@@ -1101,7 +1112,7 @@
             const t = (targetDist - currentDist) / segLen;
             const cLat = p1.lat + t * (p2.lat - p1.lat);
             const cLon = p1.lon + t * (p2.lon - p1.lon);
-            const isMajor = (chevronIdx % 5 === 0);
+            const isMajor = chevronIdx % 5 === 0;
 
             simChevrons.push({
               lat: cLat,
@@ -1237,6 +1248,19 @@
           resetSimulationState();
           drawWatchScreen();
         }
+      });
+
+      // Direction chevrons toggle (Show / Hide)
+      btnToggleDirection.addEventListener('click', () => {
+        simState.showDirection = !simState.showDirection;
+        if (simState.showDirection) {
+          btnToggleDirection.innerText = '✔ Chevrons: ON';
+          btnToggleDirection.style.background = '#059669';
+        } else {
+          btnToggleDirection.innerText = '✖ Chevrons: OFF';
+          btnToggleDirection.style.background = '#64748b';
+        }
+        drawWatchScreen();
       });
 
       // Animation loop
@@ -1451,63 +1475,65 @@
         }
 
         // 4. Render directional chevrons (50m intervals, 250m multiples are large & prominent)
-        for (let k = 0; k < simChevrons.length; k++) {
-          const ch = simChevrons[k];
-          const ax = (ch.lon - currLon) * 111319.5 * cosLat;
-          const ay = (ch.lat - currLat) * 111132.9;
+        if (simState.showDirection) {
+          for (let k = 0; k < simChevrons.length; k++) {
+            const ch = simChevrons[k];
+            const ax = (ch.lon - currLon) * 111319.5 * cosLat;
+            const ay = (ch.lat - currLat) * 111132.9;
 
-          if (ax * ax + ay * ay > CULL_DIST_SQ) continue;
+            if (ax * ax + ay * ay > CULL_DIST_SQ) continue;
 
-          const sx = cx + (ax * cosH - ay * sinH) * ZOOM_SCALE;
-          const sy = cy - (ay * cosH + ax * sinH) * ZOOM_SCALE;
+            const sx = cx + (ax * cosH - ay * sinH) * ZOOM_SCALE;
+            const sy = cy - (ay * cosH + ax * sinH) * ZOOM_SCALE;
 
-          if (sx < -25 || sx > w + 25 || sy < -25 || sy > h + 25) continue;
+            if (sx < -25 || sx > w + 25 || sy < -25 || sy > h + 25) continue;
 
-          // 2D Rotation of unit vector into screen coordinates
-          const sux = ch.ux * cosH - ch.uy * sinH;
-          const suy = -(ch.uy * cosH + ch.ux * sinH);
-          const snx = -suy;
-          const sny = sux;
+            // 2D Rotation of unit vector into screen coordinates
+            const sux = ch.ux * cosH - ch.uy * sinH;
+            const suy = -(ch.uy * cosH + ch.ux * sinH);
+            const snx = -suy;
+            const sny = sux;
 
-          dc.save();
-          dc.strokeStyle = '#00e5ff';
-          dc.lineCap = 'round';
-          dc.lineJoin = 'round';
+            dc.save();
+            dc.strokeStyle = '#00e5ff';
+            dc.lineCap = 'round';
+            dc.lineJoin = 'round';
 
-          if (ch.isMajor) {
-            // Major 250m landmark: prominent large single chevron
-            dc.lineWidth = 4;
+            if (ch.isMajor) {
+              // Major 250m landmark: prominent large single chevron
+              dc.lineWidth = 4;
 
-            const tipX = sx + sux * 9.0;
-            const tipY = sy + suy * 9.0;
-            const leftX = sx - sux * 6.0 + snx * 10.0;
-            const leftY = sy - suy * 6.0 + sny * 10.0;
-            const rightX = sx - sux * 6.0 - snx * 10.0;
-            const rightY = sy - suy * 6.0 - sny * 10.0;
+              const tipX = sx + sux * 9.0;
+              const tipY = sy + suy * 9.0;
+              const leftX = sx - sux * 6.0 + snx * 10.0;
+              const leftY = sy - suy * 6.0 + sny * 10.0;
+              const rightX = sx - sux * 6.0 - snx * 10.0;
+              const rightY = sy - suy * 6.0 - sny * 10.0;
 
-            dc.beginPath();
-            dc.moveTo(leftX, leftY);
-            dc.lineTo(tipX, tipY);
-            dc.lineTo(rightX, rightY);
-            dc.stroke();
-          } else {
-            // Minor 50m chevron: discreet single chevron
-            dc.lineWidth = 2;
+              dc.beginPath();
+              dc.moveTo(leftX, leftY);
+              dc.lineTo(tipX, tipY);
+              dc.lineTo(rightX, rightY);
+              dc.stroke();
+            } else {
+              // Minor 50m chevron: discreet single chevron
+              dc.lineWidth = 2;
 
-            const tipX = sx + sux * 5.0;
-            const tipY = sy + suy * 5.0;
-            const leftX = sx - sux * 3.0 + snx * 5.0;
-            const leftY = sy - suy * 3.0 + sny * 5.0;
-            const rightX = sx - sux * 3.0 - snx * 5.0;
-            const rightY = sy - suy * 3.0 - sny * 5.0;
+              const tipX = sx + sux * 5.0;
+              const tipY = sy + suy * 5.0;
+              const leftX = sx - sux * 3.0 + snx * 5.0;
+              const leftY = sy - suy * 3.0 + sny * 5.0;
+              const rightX = sx - sux * 3.0 - snx * 5.0;
+              const rightY = sy - suy * 3.0 - sny * 5.0;
 
-            dc.beginPath();
-            dc.moveTo(leftX, leftY);
-            dc.lineTo(tipX, tipY);
-            dc.lineTo(rightX, rightY);
-            dc.stroke();
+              dc.beginPath();
+              dc.moveTo(leftX, leftY);
+              dc.lineTo(tipX, tipY);
+              dc.lineTo(rightX, rightY);
+              dc.stroke();
+            }
+            dc.restore();
           }
-          dc.restore();
         }
 
         // 4. Render firefly comet stream & 20m milestone sparks

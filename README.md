@@ -2,7 +2,7 @@
 
 A high-performance offline custom Data Field for **Garmin Venu 2 Plus** (416 x 416 round AMOLED), designed for the native "Run" activity profile.
 
-Inspired by the bioluminescence of fireflies (*he-kim-koo* in Taiwanese), this project delivers zero-network, zero-server offline navigation. Routes are compressed into ultra-compact **Google Encoded Polyline** strings pasted directly into App Settings. The watch decodes the track into a flat integer microdegree array ($< 1\text{KB}$ memory), featuring **angular exponential smoothing**, **heading-up projection with electronic compass fusion**, **progress-based geometry coloring**, **20m milestone firefly sparks**, **viewport culling**, and **real-time off-course alerts (Cross-Track Distance > 35m)**.
+Inspired by the bioluminescence of fireflies (_he-kim-koo_ in Taiwanese), this project delivers zero-network, zero-server offline navigation. Routes are compressed into ultra-compact **Google Encoded Polyline** strings pasted directly into App Settings. The watch decodes the track into a flat integer microdegree array ($< 1\text{KB}$ memory), featuring **angular exponential smoothing**, **heading-up projection with electronic compass fusion**, **progress-based geometry coloring**, **20m milestone firefly sparks**, **viewport culling**, and **real-time off-course alerts (Cross-Track Distance > 35m)**.
 
 ---
 
@@ -66,7 +66,7 @@ make iq         # or: ./scripts/build.sh iq
 make all        # or: ./scripts/build.sh all
 ```
 
-*The script automatically detects your installed Connect IQ SDK, configures Java, and auto-generates `developer_key.der` if you don't already have one.*
+_The script automatically detects your installed Connect IQ SDK, configures Java, and auto-generates `developer_key.der` if you don't already have one._
 
 #### Method B: VS Code Tasks
 
@@ -107,24 +107,24 @@ make all        # or: ./scripts/build.sh all
    - Open the **Garmin Connect** mobile app ➔ Tap the watch icon (**Venu 2 Plus**).
    - Tap **Activities, Apps & More** ➔ **Data Fields**.
    - Tap **He-Kim-Koo (Route Field)** ➔ **Settings**.
-   - Paste the copied Polyline string into **Route String**, optionally adjust **Map View Range (Meters)** (50 - 1000m, default: 175m), and tap Save.
+   - Paste the copied Polyline string into **Route String**, configure **Show Direction Chevrons**, optionally set **Route Direction** and **Map View Range (Meters)**, and tap Save.
    - The watch immediately loads and displays your GPS art with live navigation!
 
 ---
 
 ## Core Technical Features
 
-| Feature | Description |
-| :--- | :--- |
-| **Bioluminescent Night Theme (Plan A)** | AMOLED deep black background, uniform Electric Cyan (4px) route blueprint, and a cold lime-green GPS chevron cursor with crisp white border. |
-| **Directional Chevrons (50m / 250m Gauge)** | Chevrons in Electric Cyan: subtle small `>` every 50m, prominent bold large single `>` every 250m (multiples of 250m distance ruler). Supports **Forward / Reverse** direction inversion in settings. |
-| **Configurable Map View Range** | User-adjustable viewport radius from 50m to 1000m (default: 175m) in app settings, providing custom zoom scales for tight urban routes or wide trail runs. |
-| **Comet Stream & 20m Milestone Sparks** | 80-point silky comet trail paired with **20-meter ground-locked milestone sparks (10 dots covering 200m)**. Sparks remain stationary in world coordinates and fade in place, providing an instant distance gauge. |
-| **Speed-Aware Dynamic Heading** | Prioritizes GPS ground course (`info.track`) when running (`speed > 0.8 m/s`) to guarantee forward alignment regardless of wrist angle, smoothly falling back to the 3-axis electronic compass when stationary. |
-| **Angular Exponential Smoothing** | Slerp-like angular smoothing filter with $[-\pi, +\pi]$ circular wrapping eliminates sudden perspective snapping during sharp turns or screen toggles. |
-| **Flat Microdegree Integer Array** | Replaces multi-dimensional object arrays with a flat `Array<Number>` ($10^{-5}$ deg, 32-bit integers). A 120-point route consumes $< 1\text{KB}$ heap space, preventing OOM. |
-| **Dynamic Viewport Culling** | Automatically skips 2D matrix calculation and drawing for segments outside `mapRange * 1.30`, conserving CPU cycles and AMOLED battery life. |
-| **Real-Time Off-Course Alert** | Displays a high-contrast red alert banner `OFF COURSE (+XXm)` at the top of the screen whenever Cross-Track Distance exceeds 35 meters. |
+| Feature                                     | Description                                                                                                                                                                                                                    |
+| :------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bioluminescent Night Theme (Plan A)**     | AMOLED deep black background, uniform Electric Cyan (4px) route blueprint, and a cold lime-green GPS chevron cursor with crisp white border.                                                                                   |
+| **Directional Chevrons (50m / 250m Gauge)** | Chevrons in Electric Cyan: subtle small `>` every 50m, prominent bold large single `>` every 250m (multiples of 250m distance ruler). Can be toggled on/off (`showDirection`) or inverted (**Forward / Reverse**) in settings. |
+| **Configurable Map View Range**             | User-adjustable viewport radius from 50m to 1000m (default: 175m) in app settings, providing custom zoom scales for tight urban routes or wide trail runs.                                                                     |
+| **Comet Stream & 20m Milestone Sparks**     | 80-point silky comet trail paired with **20-meter ground-locked milestone sparks (10 dots covering 200m)**. Sparks remain stationary in world coordinates and fade in place, providing an instant distance gauge.              |
+| **Speed-Aware Dynamic Heading**             | Prioritizes GPS ground course (`info.track`) when running (`speed > 0.8 m/s`) to guarantee forward alignment regardless of wrist angle, smoothly falling back to the 3-axis electronic compass when stationary.                |
+| **Angular Exponential Smoothing**           | Slerp-like angular smoothing filter with $[-\pi, +\pi]$ circular wrapping eliminates sudden perspective snapping during sharp turns or screen toggles.                                                                         |
+| **Flat Microdegree Integer Array**          | Replaces multi-dimensional object arrays with a flat `Array<Number>` ($10^{-5}$ deg, 32-bit integers). A 120-point route consumes $< 1\text{KB}$ heap space, preventing OOM.                                                   |
+| **Dynamic Viewport Culling**                | Automatically skips 2D matrix calculation and drawing for segments outside `mapRange * 1.30`, conserving CPU cycles and AMOLED battery life.                                                                                   |
+| **Real-Time Off-Course Alert**              | Displays a high-contrast red alert banner `OFF COURSE (+XXm)` at the top of the screen whenever Cross-Track Distance exceeds 35 meters.                                                                                        |
 
 ---
 
