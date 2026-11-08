@@ -3,5 +3,8 @@
     <property id="mapRange" type="number">175</property>
     <property id="routeDirection" type="number">0</property>
     <property id="showDirection" type="boolean">true</property>
+    <property id="dimCompletedPath" type="boolean">true</property>
+    <property id="showTurnCue" type="boolean">true</property>
+    <property id="showCornerAnchors" type="boolean">true</property>
 </properties>
 

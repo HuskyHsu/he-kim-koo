@@ -297,6 +297,61 @@
         justify-content: center;
         align-items: center;
         position: relative;
+        transition: box-shadow 0.3s ease;
+      }
+
+      @keyframes haptic-shake {
+        0% { transform: translate(0, 0) rotate(0deg); }
+        15% { transform: translate(-4px, 3px) rotate(-1deg); }
+        30% { transform: translate(4px, -3px) rotate(1deg); }
+        45% { transform: translate(-4px, -2px) rotate(-0.5deg); }
+        60% { transform: translate(4px, 2px) rotate(0.5deg); }
+        75% { transform: translate(-3px, 1px) rotate(-0.2deg); }
+        100% { transform: translate(0, 0) rotate(0deg); }
+      }
+
+      .watch-bezel.haptic-vibrate {
+        animation: haptic-shake 0.4s ease-in-out;
+        box-shadow:
+          0 0 35px rgba(239, 68, 68, 0.8),
+          inset 0 0 15px rgba(239, 68, 68, 0.5);
+      }
+
+      .watch-bezel.haptic-finish {
+        animation: haptic-shake 0.5s ease-in-out;
+        box-shadow:
+          0 0 45px rgba(132, 204, 22, 0.9),
+          inset 0 0 20px rgba(132, 204, 22, 0.6);
+      }
+
+      .haptic-badge {
+        position: absolute;
+        top: -16px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 5px 14px;
+        border-radius: 14px;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.6);
+        opacity: 0;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        transform: translateY(6px);
+        pointer-events: none;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .haptic-badge.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .haptic-badge.finish-badge {
+        background: #84cc16;
+        box-shadow: 0 4px 15px rgba(132, 204, 22, 0.6);
       }
 
       .watch-screen {
@@ -435,6 +490,7 @@
           <!-- Watch Bezel -->
           <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
             <div class="watch-bezel">
+              <div id="hapticBadge" class="haptic-badge">📳 Haptic Vibrate (400ms)</div>
               <div class="watch-screen">
                 <canvas id="watchCanvas" width="416" height="416"></canvas>
               </div>
@@ -450,23 +506,12 @@
                 margin-top: 4px;
               "
             >
-              <span
-                ><span style="color: #00e5ff; font-weight: bold">●</span> Route Path (Electric Cyan
-                4px)</span
-              >
-              <span><span style="color: #00e5ff; font-weight: bold">›</span> Chevrons (50m)</span>
-              <span
-                ><span style="color: #00e5ff; font-weight: bold; font-size: 1.1rem">›</span> Major
-                Chevrons (250m)</span
-              >
-              <span
-                ><span style="color: #a3e635; font-weight: bold">▲</span> Firefly Cursor (Cold
-                Lime-Green)</span
-              >
-              <span
-                ><span style="color: #a3e635; font-weight: bold">✨</span> 20m Milestone Sparks (10
-                dots / 200m)</span
-              >
+              <span><span style="color: #00e5ff; font-weight: bold">●</span> 未跑路線 (Cyan 4px)</span>
+              <span><span style="color: #0f4a5c; font-weight: bold">●</span> 跑過踩點弱化 (Visited)</span>
+              <span><span style="color: #ffffff; text-shadow: 0 0 4px #00e5ff; font-weight: bold">◉</span> 關鍵轉折折點</span>
+              <span><span style="color: #38bdf8; font-weight: bold">↱</span> 轉角前瞻 (&lt;60m)</span>
+              <span><span style="color: #a3e635; font-weight: bold">▲</span> 火金姑游標</span>
+              <span><span style="color: #a3e635; font-weight: bold">✨</span> 20m 螢光地標</span>
             </div>
           </div>
 
@@ -558,6 +603,96 @@
                 style="font-family: monospace; font-size: 0.85rem; width: 45px; text-align: right"
                 >175m</span
               >
+            </div>
+
+            <!-- Focused Watch Improvements for GPS Art -->
+            <div
+              style="
+                margin-top: 14px;
+                padding: 12px;
+                background: rgba(15, 23, 42, 0.7);
+                border: 1px solid #334155;
+                border-radius: 8px;
+              "
+            >
+              <div
+                style="
+                  font-weight: 700;
+                  font-size: 0.85rem;
+                  color: #38bdf8;
+                  margin-bottom: 8px;
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                "
+              >
+                🎨 GPS 繪圖核心功能體驗 (GPS Art Engine)
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px">
+                <div class="control-row">
+                  <span>🎨 動態踩點弱化:</span>
+                  <button
+                    id="btnToggleDim"
+                    style="background: #059669; padding: 4px 10px; font-size: 0.78rem"
+                  >
+                    ✔ 踩點弱化: ON
+                  </button>
+                </div>
+                <div class="control-row">
+                  <span>🧭 轉角前瞻提示 (&lt;60m):</span>
+                  <button
+                    id="btnToggleTurnCue"
+                    style="background: #059669; padding: 4px 10px; font-size: 0.78rem"
+                  >
+                    ✔ 轉角提示: ON
+                  </button>
+                </div>
+                <div class="control-row">
+                  <span>📍 關鍵折角錨點 (Anchor Dots):</span>
+                  <button
+                    id="btnToggleAnchors"
+                    style="background: #059669; padding: 4px 10px; font-size: 0.78rem"
+                  >
+                    ✔ 轉角錨點: ON
+                  </button>
+                </div>
+              </div>
+
+              <!-- Quick Scenarios -->
+              <div
+                style="
+                  margin-top: 10px;
+                  padding-top: 8px;
+                  border-top: 1px dashed #334155;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 6px;
+                "
+              >
+                <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600"
+                  >出發情境切換 (Starting Modes)：</span
+                >
+                <div style="display: flex; gap: 6px">
+                  <button
+                    id="btnTestMidStart"
+                    style="flex: 1; background: #0284c7; padding: 6px 8px; font-size: 0.75rem"
+                  >
+                    🚩 切入中途點出發 (Seg 4)
+                  </button>
+                  <button
+                    id="btnTestStart"
+                    style="flex: 1; background: #6366f1; padding: 6px 8px; font-size: 0.75rem"
+                  >
+                    ⚡ 從起點出發 (Seg 0)
+                  </button>
+                </div>
+                <button
+                  id="btnTestFarAway"
+                  style="background: #0d9488; padding: 6px 8px; font-size: 0.75rem; width: 100%; margin-top: 4px;"
+                >
+                  🗺️ 遠離路線 / 智慧全圖預覽 (在家/出發前 Scale Bar)
+                </button>
+              </div>
             </div>
 
             <!-- Live Metrics Readout -->
@@ -1060,6 +1195,16 @@
       const simRangeVal = document.getElementById('simRangeVal');
       const btnSimDirection = document.getElementById('btnSimDirection');
       const btnToggleDirection = document.getElementById('btnToggleDirection');
+
+      // GPS Art focused improvement buttons
+      const btnToggleDim = document.getElementById('btnToggleDim');
+      const btnToggleTurnCue = document.getElementById('btnToggleTurnCue');
+      const btnToggleAnchors = document.getElementById('btnToggleAnchors');
+      const btnTestMidStart = document.getElementById('btnTestMidStart');
+      const btnTestStart = document.getElementById('btnTestStart');
+      const btnTestFarAway = document.getElementById('btnTestFarAway');
+      const hapticBadge = document.getElementById('hapticBadge');
+
       const readoutHeading = document.getElementById('readoutHeading');
       const readoutCtd = document.getElementById('readoutCtd');
       const readoutStatus = document.getElementById('readoutStatus');
@@ -1067,6 +1212,8 @@
       let isReversed = false;
       let simRoute = [];
       let simChevrons = []; // Precomputed 50m / 250m directional chevrons along route
+      let cornerAnchors = []; // Precomputed sharp corner turning points (angle >= 38 deg)
+      let visitedSegments = []; // Visited segments tracking
       let simTrail = []; // Up to 80 points (~200m smooth comet stream)
       let simSparks = []; // Up to 10 milestone sparks (20m interval covering 200m)
       let simState = {
@@ -1086,7 +1233,122 @@
         lastSparkLat: 0,
         lastSparkLon: 0,
         animFrame: null,
+
+        // GPS Art features state
+        dimCompletedPath: true, // Dynamic path dimming
+        showTurnCue: true, // Upcoming Turn Cue
+        showCornerAnchors: true, // Corner Intersection Beacon Dots
+        simulateHaptic: true,
+        wasOffCourse: false,
+        lastHapticTime: 0,
+        totalRouteDist: 0,
+        boxWidthM: 0,
+        boxHeightM: 0,
+        centerLat: 0,
+        centerLon: 0,
+        previewMode: false,
+        distToStart: 0,
+        bearingToStart: 0,
       };
+
+      function triggerHaptic(type = 'vibe', message = '📳 偏離路線警示 (Haptic Vibe 400ms)') {
+        if (!simState.simulateHaptic) return;
+        const now = performance.now();
+        if (now - simState.lastHapticTime < 2200 && type !== 'finish') return;
+        simState.lastHapticTime = now;
+
+        const bezel = document.querySelector('.watch-bezel');
+        if (!bezel || !hapticBadge) return;
+
+        bezel.classList.remove('haptic-vibrate', 'haptic-finish');
+        void bezel.offsetWidth; // Force CSS reflow to re-trigger animation
+
+        if (type === 'finish') {
+          bezel.classList.add('haptic-finish');
+          hapticBadge.className = 'haptic-badge visible finish-badge';
+        } else {
+          bezel.classList.add('haptic-vibrate');
+          hapticBadge.className = 'haptic-badge visible';
+        }
+        hapticBadge.innerText = message;
+
+        setTimeout(() => {
+          hapticBadge.classList.remove('visible');
+          bezel.classList.remove('haptic-vibrate', 'haptic-finish');
+        }, 2200);
+      }
+
+      function calcRouteDistances() {
+        simState.totalRouteDist = 0;
+        if (!simRoute || simRoute.length < 2) return;
+        let minLat = simRoute[0].lat;
+        let maxLat = simRoute[0].lat;
+        let minLon = simRoute[0].lon;
+        let maxLon = simRoute[0].lon;
+
+        for (let i = 0; i < simRoute.length - 1; i++) {
+          simState.totalRouteDist += calcDistanceMeters(simRoute[i], simRoute[i + 1]);
+        }
+
+        for (let i = 0; i < simRoute.length; i++) {
+          if (simRoute[i].lat < minLat) minLat = simRoute[i].lat;
+          if (simRoute[i].lat > maxLat) maxLat = simRoute[i].lat;
+          if (simRoute[i].lon < minLon) minLon = simRoute[i].lon;
+          if (simRoute[i].lon > maxLon) maxLon = simRoute[i].lon;
+        }
+
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLon = (minLon + maxLon) / 2;
+        const cosLat = Math.cos((centerLat * Math.PI) / 180);
+
+        simState.boxWidthM = (maxLon - minLon) * 111319.5 * cosLat;
+        simState.boxHeightM = (maxLat - minLat) * 111132.9;
+        simState.centerLat = centerLat;
+        simState.centerLon = centerLon;
+        simState.minLat = minLat;
+        simState.maxLat = maxLat;
+        simState.minLon = minLon;
+        simState.maxLon = maxLon;
+      }
+
+      function getNextTurnCue() {
+        if (!simRoute || simRoute.length < 3 || simState.segIdx >= simRoute.length - 1) return null;
+        let distAhead = 0;
+        const pCurA = simRoute[simState.segIdx];
+        const pCurB = simRoute[simState.segIdx + 1];
+        const curSegLen = calcDistanceMeters(pCurA, pCurB);
+        distAhead = curSegLen * (1 - simState.segProgress);
+
+        for (let i = simState.segIdx + 1; i < simRoute.length - 1; i++) {
+          const p0 = simRoute[i - 1];
+          const p1 = simRoute[i];
+          const p2 = simRoute[i + 1];
+
+          const cosLat = Math.cos((p1.lat * Math.PI) / 180);
+          const v1x = (p1.lon - p0.lon) * 111319.5 * cosLat;
+          const v1y = (p1.lat - p0.lat) * 111132.9;
+          const v2x = (p2.lon - p1.lon) * 111319.5 * cosLat;
+          const v2y = (p2.lat - p1.lat) * 111132.9;
+
+          const a1 = Math.atan2(v1x, v1y);
+          const a2 = Math.atan2(v2x, v2y);
+          let diff = a2 - a1;
+          while (diff > Math.PI) diff -= 2 * Math.PI;
+          while (diff < -Math.PI) diff += 2 * Math.PI;
+
+          const deg = (diff * 180) / Math.PI;
+          if (Math.abs(deg) >= 35) {
+            return {
+              dist: Math.round(distAhead),
+              direction: deg > 0 ? 'right' : 'left',
+              label: deg > 0 ? `↱ ${Math.round(distAhead)}m` : `↰ ${Math.round(distAhead)}m`,
+            };
+          }
+          distAhead += calcDistanceMeters(p1, p2);
+          if (distAhead > 130) break;
+        }
+        return null;
+      }
 
       function precomputeChevrons() {
         simChevrons = [];
@@ -1130,34 +1392,79 @@
         }
       }
 
+      function precomputeCornerAnchors() {
+        cornerAnchors = [];
+        if (!simRoute || simRoute.length < 3) return;
+        for (let i = 1; i < simRoute.length - 1; i++) {
+          const p0 = simRoute[i - 1];
+          const p1 = simRoute[i];
+          const p2 = simRoute[i + 1];
+
+          const cosLat = Math.cos((p1.lat * Math.PI) / 180);
+          const v1x = (p1.lon - p0.lon) * 111319.5 * cosLat;
+          const v1y = (p1.lat - p0.lat) * 111132.9;
+          const v2x = (p2.lon - p1.lon) * 111319.5 * cosLat;
+          const v2y = (p2.lat - p1.lat) * 111132.9;
+
+          const a1 = Math.atan2(v1x, v1y);
+          const a2 = Math.atan2(v2x, v2y);
+          let diff = a2 - a1;
+          while (diff > Math.PI) diff -= 2 * Math.PI;
+          while (diff < -Math.PI) diff += 2 * Math.PI;
+
+          const deg = (Math.abs(diff) * 180) / Math.PI;
+          if (deg >= 38) {
+            cornerAnchors.push({
+              idx: i,
+              lat: p1.lat,
+              lon: p1.lon,
+              deg: Math.round(deg),
+            });
+          }
+        }
+      }
+
       function initWatchSimulation(points) {
         simRoute = points.slice();
         if (isReversed) {
           simRoute.reverse();
         }
+        calcRouteDistances();
         precomputeChevrons();
-        resetSimulationState();
+        precomputeCornerAnchors();
+        resetSimulationState(0);
         drawWatchScreen();
       }
 
-      function resetSimulationState() {
-        if (simRoute.length < 2) return;
-        simState.segIdx = 0;
+      function resetSimulationState(startSegIdx = 0) {
+        if (!simRoute || simRoute.length < 2) return;
+        const validStart = Math.min(Math.max(0, startSegIdx), simRoute.length - 2);
+        simState.segIdx = validStart;
         simState.segProgress = 0.0;
-        simState.currLat = simRoute[0].lat;
-        simState.currLon = simRoute[0].lon;
+        simState.currLat = simRoute[validStart].lat;
+        simState.currLon = simRoute[validStart].lon;
         simState.deviateMeters = 0;
-        simTrail = [{ lat: simRoute[0].lat, lon: simRoute[0].lon }];
-        simSparks = [{ lat: simRoute[0].lat, lon: simRoute[0].lon }];
-        simState.lastTrailLat = simRoute[0].lat;
-        simState.lastTrailLon = simRoute[0].lon;
-        simState.lastSparkLat = simRoute[0].lat;
-        simState.lastSparkLon = simRoute[0].lon;
+        simState.isGuideToStart = false;
+        simState.hasFinished = false;
+        simState.wasOffCourse = false;
+        simState.previewMode = false;
+
+        // Visited segments initialized to false
+        visitedSegments = new Array(simRoute.length - 1).fill(false);
+
+        simTrail = [{ lat: simRoute[validStart].lat, lon: simRoute[validStart].lon }];
+        simSparks = [{ lat: simRoute[validStart].lat, lon: simRoute[validStart].lon }];
+        simState.lastTrailLat = simRoute[validStart].lat;
+        simState.lastTrailLon = simRoute[validStart].lon;
+        simState.lastSparkLat = simRoute[validStart].lat;
+        simState.lastSparkLon = simRoute[validStart].lon;
 
         // Calculate initial track heading
-        const vLat = simRoute[1].lat - simRoute[0].lat;
+        const nextIdx = validStart + 1;
+        const vLat = simRoute[nextIdx].lat - simRoute[validStart].lat;
         const vLon =
-          (simRoute[1].lon - simRoute[0].lon) * Math.cos((simRoute[0].lat * Math.PI) / 180);
+          (simRoute[nextIdx].lon - simRoute[validStart].lon) *
+          Math.cos((simRoute[validStart].lat * Math.PI) / 180);
         const initHeading = Math.atan2(vLon, vLat);
         simState.targetHeadingRad = initHeading;
         simState.renderHeadingRad = initHeading;
@@ -1183,7 +1490,7 @@
           btnSimPlay.innerText = '▶ Resume Simulation';
           if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
         } else {
-          if (simState.segIdx >= simRoute.length - 1) {
+          if (simState.segIdx >= simRoute.length - 1 || simState.hasFinished) {
             resetSimulationState();
           }
           simState.isPlaying = true;
@@ -1245,7 +1552,8 @@
         if (simRoute && simRoute.length >= 2) {
           simRoute.reverse();
           precomputeChevrons();
-          resetSimulationState();
+          precomputeCornerAnchors();
+          resetSimulationState(0);
           drawWatchScreen();
         }
       });
@@ -1262,6 +1570,92 @@
         }
         drawWatchScreen();
       });
+
+      // Feature Toggles Event Listeners
+      if (btnToggleDim) {
+        btnToggleDim.addEventListener('click', () => {
+          simState.dimCompletedPath = !simState.dimCompletedPath;
+          if (simState.dimCompletedPath) {
+            btnToggleDim.innerText = '✔ 踩點弱化: ON';
+            btnToggleDim.style.background = '#059669';
+          } else {
+            btnToggleDim.innerText = '✖ 踩點弱化: OFF';
+            btnToggleDim.style.background = '#64748b';
+          }
+          drawWatchScreen();
+        });
+      }
+
+      if (btnToggleTurnCue) {
+        btnToggleTurnCue.addEventListener('click', () => {
+          simState.showTurnCue = !simState.showTurnCue;
+          if (simState.showTurnCue) {
+            btnToggleTurnCue.innerText = '✔ 轉角提示: ON';
+            btnToggleTurnCue.style.background = '#059669';
+          } else {
+            btnToggleTurnCue.innerText = '✖ 轉角提示: OFF';
+            btnToggleTurnCue.style.background = '#64748b';
+          }
+          drawWatchScreen();
+        });
+      }
+
+      if (btnToggleAnchors) {
+        btnToggleAnchors.addEventListener('click', () => {
+          simState.showCornerAnchors = !simState.showCornerAnchors;
+          if (simState.showCornerAnchors) {
+            btnToggleAnchors.innerText = '✔ 轉角錨點: ON';
+            btnToggleAnchors.style.background = '#059669';
+          } else {
+            btnToggleAnchors.innerText = '✖ 轉角錨點: OFF';
+            btnToggleAnchors.style.background = '#64748b';
+          }
+          drawWatchScreen();
+        });
+      }
+
+      // Quick Scenario 1: Mid-route cut-in (Seg 4)
+      if (btnTestMidStart) {
+        btnTestMidStart.addEventListener('click', () => {
+          if (!simRoute || simRoute.length < 5) return;
+          const targetSeg = Math.min(4, simRoute.length - 2);
+          resetSimulationState(targetSeg);
+          if (!simState.isPlaying) {
+            btnSimPlay.click();
+          }
+          drawWatchScreen();
+        });
+      }
+
+      // Quick Scenario 2: Standard Start (Seg 0)
+      if (btnTestStart) {
+        btnTestStart.addEventListener('click', () => {
+          if (!simRoute || simRoute.length < 2) return;
+          resetSimulationState(0);
+          if (!simState.isPlaying) {
+            btnSimPlay.click();
+          }
+          drawWatchScreen();
+        });
+      }
+
+      // Quick Scenario 3: Far Away / Route Preview Mode (> 250m)
+      if (btnTestFarAway) {
+        btnTestFarAway.addEventListener('click', () => {
+          if (!simRoute || simRoute.length < 2) return;
+          simState.isPlaying = false;
+          if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
+          btnSimPlay.innerText = '▶ Start Run Simulation';
+
+          // Simulate runner far away from route (e.g. 12.5km southwest)
+          const pStart = simRoute[0];
+          const cosLat0 = Math.cos((pStart.lat * Math.PI) / 180);
+          simState.currLat = pStart.lat - 10000 / 111132.9;
+          simState.currLon = pStart.lon - 7500 / (111319.5 * cosLat0);
+          simState.previewMode = true;
+          drawWatchScreen();
+        });
+      }
 
       // Animation loop
       function simAnimationLoop(now) {
@@ -1287,10 +1681,52 @@
 
       // Runner trajectory progression
       function advanceRunner(distanceM) {
-        if (simState.segIdx >= simRoute.length - 1) {
-          simState.isPlaying = false;
-          btnSimPlay.innerText = '▶ Replay Simulation';
+        // (A) Guide to Start Mode progression
+        if (simState.isGuideToStart) {
+          const pStart = simRoute[0];
+          const cosLat0 = Math.cos((simState.currLat * Math.PI) / 180);
+          const dLonM = (pStart.lon - simState.currLon) * 111319.5 * cosLat0;
+          const dLatM = (pStart.lat - simState.currLat) * 111132.9;
+          const distToStart = Math.hypot(dLonM, dLatM);
+
+          if (distToStart <= 16) {
+            // Reached start point!
+            simState.isGuideToStart = false;
+            simState.currLat = pStart.lat;
+            simState.currLon = pStart.lon;
+            simState.segIdx = 0;
+            simState.segProgress = 0;
+            triggerHaptic('vibe', '🏁 抵達起點！進入正軌導航');
+          } else {
+            const step = Math.min(distanceM, distToStart);
+            simState.currLat += (dLatM / distToStart) * (step / 111132.9);
+            simState.currLon += (dLonM / distToStart) * (step / (111319.5 * cosLat0));
+            const head = Math.atan2(dLonM, dLatM);
+            if (!simState.manualHeading) {
+              simState.targetHeadingRad = head;
+            }
+          }
+
+          recordTrailAndSparks();
           return;
+        }
+
+        // (B) Normal Route navigation progression
+        visitedSegments[simState.segIdx] = true;
+
+        if (simState.segIdx >= simRoute.length - 1) {
+          // Check if there are unvisited segments (e.g. started mid-route and wrapped around)
+          const hasUnvisited = visitedSegments.some((v) => !v);
+          if (hasUnvisited) {
+            simState.segIdx = 0;
+            simState.segProgress = 0;
+          } else {
+            simState.isPlaying = false;
+            simState.hasFinished = true;
+            btnSimPlay.innerText = '▶ Replay Simulation';
+            triggerHaptic('finish', '🎉 繪圖完賽！(Route Completed)');
+            return;
+          }
         }
 
         const pA = simRoute[simState.segIdx];
@@ -1305,12 +1741,21 @@
 
         simState.segProgress += distanceM / segLen;
         if (simState.segProgress >= 1.0) {
+          visitedSegments[simState.segIdx] = true;
           simState.segProgress = 0;
           simState.segIdx++;
           if (simState.segIdx >= simRoute.length - 1) {
-            simState.isPlaying = false;
-            btnSimPlay.innerText = '▶ Replay Simulation';
-            return;
+            const hasUnvisited = visitedSegments.some((v) => !v);
+            if (hasUnvisited) {
+              simState.segIdx = 0;
+              simState.segProgress = 0;
+            } else {
+              simState.isPlaying = false;
+              simState.hasFinished = true;
+              btnSimPlay.innerText = '▶ Replay Simulation';
+              triggerHaptic('finish', '🎉 繪圖完賽！(Route Completed)');
+              return;
+            }
           }
         }
 
@@ -1347,7 +1792,12 @@
           simState.currLon = baseLon;
         }
 
-        // (1) Record continuous trail points (every >2.5m, up to 80 points covering ~200m)
+        recordTrailAndSparks();
+      }
+
+      function recordTrailAndSparks() {
+        const baseLat = simState.currLat;
+        // Record continuous trail points (every >2.5m, up to 80 points)
         const dLatM = (simState.currLat - simState.lastTrailLat) * 111132.9;
         const dLonM =
           (simState.currLon - simState.lastTrailLon) *
@@ -1362,14 +1812,13 @@
           simState.lastTrailLon = simState.currLon;
         }
 
-        // (2) Record 20-meter milestone sparks (plants dot at ground position, fades in place, max 10 dots)
+        // Record 20-meter milestone sparks
         const dSparkLatM = (simState.currLat - simState.lastSparkLat) * 111132.9;
         const dSparkLonM =
           (simState.currLon - simState.lastSparkLon) *
           111319.5 *
           Math.cos((baseLat * Math.PI) / 180);
         if (dSparkLatM * dSparkLatM + dSparkLonM * dSparkLonM >= 400.0) {
-          // 20m^2 = 400.0
           simSparks.push({ lat: simState.currLat, lon: simState.currLon });
           if (simSparks.length > 10) {
             simSparks.shift();
@@ -1377,6 +1826,187 @@
           simState.lastSparkLat = simState.currLat;
           simState.lastSparkLon = simState.currLon;
         }
+      }
+
+      // Full Route Preview with Scale Bar & Dimensions (1:1 with Garmin renderRoutePreview)
+      function renderRoutePreviewWeb(dc, cx, cy, w, h) {
+        if (!simRoute || simRoute.length < 2) return;
+
+        // 1. Top Header: GPS ART (Total Distance) & Dimensions (W x H)
+        const totalDistStr = simState.totalRouteDist >= 1000
+          ? (simState.totalRouteDist / 1000).toFixed(1) + ' km'
+          : Math.round(simState.totalRouteDist) + ' m';
+
+        dc.save();
+        dc.fillStyle = '#00e5ff';
+        dc.font = 'bold 15px -apple-system, sans-serif';
+        dc.textAlign = 'center';
+        dc.fillText(`GPS ART (${totalDistStr})`, cx, 28);
+
+        const wStr = simState.boxWidthM >= 1000
+          ? 'W ' + (simState.boxWidthM / 1000).toFixed(1) + 'k'
+          : 'W ' + Math.round(simState.boxWidthM) + 'm';
+        const hStr = simState.boxHeightM >= 1000
+          ? 'H ' + (simState.boxHeightM / 1000).toFixed(1) + 'k'
+          : 'H ' + Math.round(simState.boxHeightM) + 'm';
+
+        dc.fillStyle = '#94a3b8';
+        dc.font = '12px -apple-system, sans-serif';
+        dc.fillText(`${wStr}   ${hStr}`, cx, 48);
+
+        // 2. Center Thumbnail
+        const thumbCy = cy - 2;
+        const maxThumbW = w * 0.65;
+        const maxThumbH = h * 0.46;
+
+        const centerLat = simState.centerLat || simRoute[0].lat;
+        const centerLon = simState.centerLon || simRoute[0].lon;
+        const cosLat = Math.cos((centerLat * Math.PI) / 180);
+
+        const dLonMetric = Math.max(1.0, (simState.maxLon - simState.minLon) * 111319.5 * cosLat);
+        const dLatMetric = Math.max(1.0, (simState.maxLat - simState.minLat) * 111132.9);
+
+        const scaleX = maxThumbW / dLonMetric;
+        const scaleY = maxThumbH / dLatMetric;
+        const thumbScale = Math.min(scaleX, scaleY);
+
+        // Draw path in vibrant Electric Cyan
+        dc.strokeStyle = '#00e5ff';
+        dc.lineWidth = 3;
+        dc.lineCap = 'round';
+        dc.lineJoin = 'round';
+        dc.beginPath();
+
+        const p0 = simRoute[0];
+        const startSx = cx + (p0.lon - centerLon) * 111319.5 * cosLat * thumbScale;
+        const startSy = thumbCy - (p0.lat - centerLat) * 111132.9 * thumbScale;
+        dc.moveTo(startSx, startSy);
+
+        for (let i = 1; i < simRoute.length; i++) {
+          const pt = simRoute[i];
+          const sx = cx + (pt.lon - centerLon) * 111319.5 * cosLat * thumbScale;
+          const sy = thumbCy - (pt.lat - centerLat) * 111132.9 * thumbScale;
+          dc.lineTo(sx, sy);
+        }
+        dc.stroke();
+
+        const pEnd = simRoute[simRoute.length - 1];
+        const endSx = cx + (pEnd.lon - centerLon) * 111319.5 * cosLat * thumbScale;
+        const endSy = thumbCy - (pEnd.lat - centerLat) * 111132.9 * thumbScale;
+
+        const isLoop = Math.hypot(startSx - endSx, startSy - endSy) < 6;
+
+        // Start marker (lime green halo + white core)
+        dc.fillStyle = 'rgba(163, 230, 53, 0.4)';
+        dc.beginPath();
+        dc.arc(startSx, startSy, 9, 0, Math.PI * 2);
+        dc.fill();
+
+        dc.fillStyle = '#a3e635';
+        dc.beginPath();
+        dc.arc(startSx, startSy, 5, 0, Math.PI * 2);
+        dc.fill();
+
+        dc.fillStyle = '#ffffff';
+        dc.beginPath();
+        dc.arc(startSx, startSy, 2, 0, Math.PI * 2);
+        dc.fill();
+
+        if (!isLoop) {
+          // End marker (cyan halo + white core)
+          dc.fillStyle = '#00e5ff';
+          dc.beginPath();
+          dc.arc(endSx, endSy, 5, 0, Math.PI * 2);
+          dc.fill();
+
+          dc.fillStyle = '#ffffff';
+          dc.beginPath();
+          dc.arc(endSx, endSy, 2, 0, Math.PI * 2);
+          dc.fill();
+        }
+
+        // 3. Adaptive Visual Scale Bar (|── 500m ──|)
+        const pixelsPerMeter = thumbScale;
+        if (pixelsPerMeter > 0.00001) {
+          const targetSteps = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+          let bestStep = 500;
+          let bestDiff = Infinity;
+          for (const step of targetSteps) {
+            const barPixels = step * pixelsPerMeter;
+            const diff = Math.abs(barPixels - 55);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestStep = step;
+            }
+          }
+
+          const barW = Math.max(24, Math.min(120, Math.round(bestStep * pixelsPerMeter)));
+          const barX = cx - barW / 2;
+          const barY = Math.round(h * 0.77);
+
+          dc.strokeStyle = '#ffffff';
+          dc.lineWidth = 2;
+          dc.beginPath();
+          dc.moveTo(barX, barY);
+          dc.lineTo(barX + barW, barY);
+          dc.moveTo(barX, barY - 4);
+          dc.lineTo(barX, barY + 4);
+          dc.moveTo(barX + barW, barY - 4);
+          dc.lineTo(barX + barW, barY + 4);
+          dc.stroke();
+
+          const scaleLabel = bestStep >= 1000 ? `${bestStep / 1000} km` : `${bestStep} m`;
+          dc.fillStyle = '#f8fafc';
+          dc.font = 'bold 11px -apple-system, sans-serif';
+          dc.textAlign = 'center';
+          dc.fillText(scaleLabel, cx, barY - 7);
+        }
+
+        // 4. Bottom Footer: TO START Guidance Pill
+        const pillW = 200;
+        const pillH = 30;
+        const pillX = cx - pillW / 2;
+        const pillY = Math.round(h * 0.85);
+
+        dc.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        roundRect(dc, pillX, pillY, pillW, pillH, 8);
+        dc.fill();
+
+        dc.strokeStyle = '#38bdf8';
+        dc.lineWidth = 1.5;
+        roundRect(dc, pillX, pillY, pillW, pillH, 8);
+        dc.stroke();
+
+        // Vector arrow pointing to Start
+        const relAngle = simState.bearingToStart - simState.renderHeadingRad;
+        const arrowCx = pillX + 22;
+        const arrowCy = pillY + 15;
+        const adx = Math.sin(relAngle) * 7.5;
+        const ady = -Math.cos(relAngle) * 7.5;
+
+        dc.strokeStyle = '#a3e635';
+        dc.lineWidth = 2;
+        dc.beginPath();
+        dc.moveTo(arrowCx - adx * 0.5, arrowCy - ady * 0.5);
+        dc.lineTo(arrowCx + adx, arrowCy + ady);
+        const sideAngle1 = relAngle + 2.5;
+        const sideAngle2 = relAngle - 2.5;
+        dc.moveTo(arrowCx + adx, arrowCy + ady);
+        dc.lineTo(arrowCx + adx + Math.sin(sideAngle1) * 4.5, arrowCy + ady - Math.cos(sideAngle1) * 4.5);
+        dc.moveTo(arrowCx + adx, arrowCy + ady);
+        dc.lineTo(arrowCx + adx + Math.sin(sideAngle2) * 4.5, arrowCy + ady - Math.cos(sideAngle2) * 4.5);
+        dc.stroke();
+
+        const startDistStr = simState.distToStart >= 1000
+          ? (simState.distToStart / 1000).toFixed(1) + ' km'
+          : Math.round(simState.distToStart) + ' m';
+
+        dc.fillStyle = '#ffffff';
+        dc.font = 'bold 12px -apple-system, sans-serif';
+        dc.textAlign = 'left';
+        dc.fillText(`TO START: ${startDistStr}`, pillX + 40, pillY + 19);
+
+        dc.restore();
       }
 
       // 1:1 Implementation of Monkey C compute() & onUpdate()
@@ -1410,41 +2040,108 @@
         const sinH = Math.sin(heading);
         const cosH = Math.cos(heading);
 
-        // 2. Compute Cross-Track Distance: single-pass nearest distance to full route
+        // 2. Compute Cross-Track Distance with Progress-Aware Forward Search Window
         const N = simRoute.length;
         let minDist = Infinity;
 
-        for (let i = 0; i < N - 1; i++) {
-          const pA = simRoute[i];
-          const pB = simRoute[i + 1];
+        if (simState.isGuideToStart) {
+          // In Guide to Start mode, distance is calculated to the start point
+          const pStart = simRoute[0];
+          const sax = (pStart.lon - currLon) * 111319.5 * cosLat;
+          const say = (pStart.lat - currLat) * 111132.9;
+          minDist = Math.hypot(sax, say);
+        } else {
+          // Priority search window: [segIdx - 2, segIdx + 4] (prevents self-intersection jumping)
+          const startSearch = Math.max(0, simState.segIdx - 2);
+          const endSearch = Math.min(N - 2, simState.segIdx + 4);
 
-          const ax = (pA.lon - currLon) * 111319.5 * cosLat;
-          const ay = (pA.lat - currLat) * 111132.9;
-          const bx = (pB.lon - currLon) * 111319.5 * cosLat;
-          const by = (pB.lat - currLat) * 111132.9;
+          for (let i = startSearch; i <= endSearch; i++) {
+            const pA = simRoute[i];
+            const pB = simRoute[i + 1];
 
-          const vx = bx - ax;
-          const vy = by - ay;
-          const segLenSq = vx * vx + vy * vy;
+            const ax = (pA.lon - currLon) * 111319.5 * cosLat;
+            const ay = (pA.lat - currLat) * 111132.9;
+            const bx = (pB.lon - currLon) * 111319.5 * cosLat;
+            const by = (pB.lat - currLat) * 111132.9;
 
-          let d = 0;
-          if (segLenSq < 0.001) {
-            d = Math.hypot(ax, ay);
-          } else {
-            const t = Math.max(0, Math.min(1, (-ax * vx - ay * vy) / segLenSq));
-            d = Math.hypot(ax + t * vx, ay + t * vy);
+            const vx = bx - ax;
+            const vy = by - ay;
+            const segLenSq = vx * vx + vy * vy;
+
+            let d = 0;
+            if (segLenSq < 0.001) {
+              d = Math.hypot(ax, ay);
+            } else {
+              const t = Math.max(0, Math.min(1, (-ax * vx - ay * vy) / segLenSq));
+              d = Math.hypot(ax + t * vx, ay + t * vy);
+            }
+
+            if (d < minDist) {
+              minDist = d;
+            }
           }
 
-          if (d < minDist) {
-            minDist = d;
+          // Fallback global search if runner drifted > 45m away
+          if (minDist > 45.0) {
+            for (let i = 0; i < N - 1; i++) {
+              if (i >= startSearch && i <= endSearch) continue;
+              const pA = simRoute[i];
+              const pB = simRoute[i + 1];
+
+              const ax = (pA.lon - currLon) * 111319.5 * cosLat;
+              const ay = (pA.lat - currLat) * 111132.9;
+              const bx = (pB.lon - currLon) * 111319.5 * cosLat;
+              const by = (pB.lat - currLat) * 111132.9;
+
+              const vx = bx - ax;
+              const vy = by - ay;
+              const segLenSq = vx * vx + vy * vy;
+
+              let d = 0;
+              if (segLenSq < 0.001) {
+                d = Math.hypot(ax, ay);
+              } else {
+                const t = Math.max(0, Math.min(1, (-ax * vx - ay * vy) / segLenSq));
+                d = Math.hypot(ax + t * vx, ay + t * vy);
+              }
+
+              if (d < minDist) {
+                minDist = d;
+              }
+            }
           }
         }
 
-        const isOffCourse = minDist > OFF_COURSE_THRESHOLD_M;
+        // Distance & bearing to Start point
+        const pStart = simRoute[0];
+        const sax = (pStart.lon - currLon) * 111319.5 * cosLat;
+        const say = (pStart.lat - currLat) * 111132.9;
+        const distToStart = Math.hypot(sax, say);
+        simState.distToStart = distToStart;
+        simState.bearingToStart = Math.atan2(sax, say);
 
-        // 3. Render route lines (Uniform Electric Cyan 4px)
-        dc.strokeStyle = '#00e5ff';
-        dc.lineWidth = 4;
+        // Smart Route Preview: If far away (> 250m) or explicitly triggered, show full route preview
+        const isFarAway = !simState.isGuideToStart && minDist > 250.0;
+        if (simState.previewMode || isFarAway) {
+          renderRoutePreviewWeb(dc, cx, cy, w, h);
+          readoutHeading.innerText = `${Math.round(((heading * 180) / Math.PI + 360) % 360)}°`;
+          readoutCtd.innerText = distToStart >= 1000 ? `${(distToStart / 1000).toFixed(1)} km` : `${Math.round(distToStart)} m`;
+          readoutStatus.innerHTML = `<span style="color: #38bdf8;">🗺️ PREVIEW MODE (Scale Bar & Overview)</span>`;
+          return;
+        }
+
+        const isOffCourse = !simState.isGuideToStart && minDist > OFF_COURSE_THRESHOLD_M;
+
+        // Trigger haptic alert if transitioning to off-course
+        if (isOffCourse && !simState.wasOffCourse) {
+          triggerHaptic('vibe', `📳 偏離路線警示 (+${Math.round(minDist)}m)`);
+        }
+        simState.wasOffCourse = isOffCourse;
+
+        // 3. Render route lines (Visited Flag Dimming with arbitrary start / loop support)
+        const isDim = simState.dimCompletedPath && !simState.isGuideToStart;
+        const currentSeg = simState.segIdx;
+
         dc.lineCap = 'round';
         dc.lineJoin = 'round';
 
@@ -1468,10 +2165,49 @@
           const sx2 = cx + (bx * cosH - by * sinH) * ZOOM_SCALE;
           const sy2 = cy - (by * cosH + bx * sinH) * ZOOM_SCALE;
 
-          dc.beginPath();
-          dc.moveTo(sx1, sy1);
-          dc.lineTo(sx2, sy2);
-          dc.stroke();
+          const isVisited = visitedSegments && visitedSegments[i];
+          const isCurrent = (i === currentSeg);
+
+          dc.save();
+          if (isDim && isVisited && !isCurrent) {
+            // Truly visited past segment: Dimmed Slate-Cyan (keeps GPS Art drawing visible)
+            dc.strokeStyle = 'rgba(0, 229, 255, 0.28)';
+            dc.lineWidth = 3;
+            dc.beginPath();
+            dc.moveTo(sx1, sy1);
+            dc.lineTo(sx2, sy2);
+            dc.stroke();
+          } else if (isDim && isCurrent) {
+            // Current segment: split into traversed and upcoming
+            const t = simState.segProgress;
+            const midX = sx1 + (sx2 - sx1) * t;
+            const midY = sy1 + (sy2 - sy1) * t;
+
+            // Past portion
+            dc.strokeStyle = 'rgba(0, 229, 255, 0.28)';
+            dc.lineWidth = 3;
+            dc.beginPath();
+            dc.moveTo(sx1, sy1);
+            dc.lineTo(midX, midY);
+            dc.stroke();
+
+            // Upcoming portion
+            dc.strokeStyle = '#00e5ff';
+            dc.lineWidth = 4;
+            dc.beginPath();
+            dc.moveTo(midX, midY);
+            dc.lineTo(sx2, sy2);
+            dc.stroke();
+          } else {
+            // Upcoming unvisited segment: Vibrant Electric Cyan 4px
+            dc.strokeStyle = '#00e5ff';
+            dc.lineWidth = 4;
+            dc.beginPath();
+            dc.moveTo(sx1, sy1);
+            dc.lineTo(sx2, sy2);
+            dc.stroke();
+          }
+          dc.restore();
         }
 
         // 4. Render directional chevrons (50m intervals, 250m multiples are large & prominent)
@@ -1536,7 +2272,51 @@
           }
         }
 
-        // 4. Render firefly comet stream & 20m milestone sparks
+        // 4b. Render Corner Anchor Beacon Dots (Key turning intersections >= 38 deg)
+        if (simState.showCornerAnchors && cornerAnchors.length > 0) {
+          for (let c = 0; c < cornerAnchors.length; c++) {
+            const anchor = cornerAnchors[c];
+            const ax = (anchor.lon - currLon) * 111319.5 * cosLat;
+            const ay = (anchor.lat - currLat) * 111132.9;
+
+            if (ax * ax + ay * ay > CULL_DIST_SQ) continue;
+
+            const sx = cx + (ax * cosH - ay * sinH) * ZOOM_SCALE;
+            const sy = cy - (ay * cosH + ax * sinH) * ZOOM_SCALE;
+
+            if (sx < -20 || sx > w + 20 || sy < -20 || sy > h + 20) continue;
+
+            const isPassed = simState.dimCompletedPath && visitedSegments[anchor.idx];
+
+            dc.save();
+            if (isPassed) {
+              // Dimmed past corner dot
+              dc.fillStyle = 'rgba(0, 229, 255, 0.35)';
+              dc.beginPath();
+              dc.arc(sx, sy, 3, 0, Math.PI * 2);
+              dc.fill();
+            } else {
+              // Upcoming sharp corner: glowing beacon ring + white dot
+              dc.fillStyle = 'rgba(0, 229, 255, 0.3)';
+              dc.beginPath();
+              dc.arc(sx, sy, 7, 0, Math.PI * 2);
+              dc.fill();
+
+              dc.fillStyle = '#00e5ff';
+              dc.beginPath();
+              dc.arc(sx, sy, 4, 0, Math.PI * 2);
+              dc.fill();
+
+              dc.fillStyle = '#ffffff';
+              dc.beginPath();
+              dc.arc(sx, sy, 2, 0, Math.PI * 2);
+              dc.fill();
+            }
+            dc.restore();
+          }
+        }
+
+        // 5. Render firefly comet stream & 20m milestone sparks
         const M = simTrail.length;
         if (M > 1) {
           // (1) Smooth tapered comet line (2.0px/0.35 -> 5.5px/0.95)
@@ -1628,7 +2408,104 @@
         dc.fill();
         dc.restore();
 
-        // 6. Off-course alert banner
+        // 6. Guide to Start Mode: Dotted line and beacon to Start
+        if (simState.isGuideToStart) {
+          const pStart = simRoute[0];
+          const sax = (pStart.lon - currLon) * 111319.5 * cosLat;
+          const say = (pStart.lat - currLat) * 111132.9;
+          const distToStart = Math.hypot(sax, say);
+
+          const ssx = cx + (sax * cosH - say * sinH) * ZOOM_SCALE;
+          const ssy = cy - (say * cosH + sax * sinH) * ZOOM_SCALE;
+
+          // Dashed guide vector
+          dc.save();
+          dc.strokeStyle = '#a3e635';
+          dc.lineWidth = 2.5;
+          dc.setLineDash([6, 6]);
+          dc.beginPath();
+          dc.moveTo(cx, cy);
+          dc.lineTo(ssx, ssy);
+          dc.stroke();
+          dc.restore();
+
+          // Pulsing start beacon
+          dc.save();
+          const pulse = 1.0 + 0.3 * Math.sin(performance.now() / 200);
+          dc.fillStyle = 'rgba(163, 230, 53, 0.25)';
+          dc.beginPath();
+          dc.arc(ssx, ssy, 14 * pulse, 0, Math.PI * 2);
+          dc.fill();
+
+          dc.fillStyle = '#a3e635';
+          dc.beginPath();
+          dc.arc(ssx, ssy, 7, 0, Math.PI * 2);
+          dc.fill();
+
+          dc.fillStyle = '#ffffff';
+          dc.beginPath();
+          dc.arc(ssx, ssy, 3, 0, Math.PI * 2);
+          dc.fill();
+          dc.restore();
+
+          // Top Banner: Guide to Start
+          const bannerW = 210;
+          const bannerH = 34;
+          const bannerX = cx - bannerW / 2;
+          const bannerY = 24;
+
+          dc.save();
+          dc.fillStyle = '#0284c7';
+          roundRect(dc, bannerX, bannerY, bannerW, bannerH, 6);
+          dc.fill();
+
+          dc.strokeStyle = '#38bdf8';
+          dc.lineWidth = 1.5;
+          roundRect(dc, bannerX, bannerY, bannerW, bannerH, 6);
+          dc.stroke();
+
+          dc.fillStyle = '#ffffff';
+          dc.font = 'bold 14px -apple-system, sans-serif';
+          dc.textAlign = 'center';
+          dc.fillText(`🚩 TO START (${Math.round(distToStart)}m)`, cx, bannerY + 22);
+          dc.restore();
+        }
+
+        // 7. Minimalist Upcoming Turn Cue Badge (< 60m from corner)
+        if (
+          simState.showTurnCue &&
+          !isOffCourse &&
+          !simState.isGuideToStart &&
+          !simState.hasFinished
+        ) {
+          const turn = getNextTurnCue();
+          if (turn && turn.dist <= 60) {
+            dc.save();
+            const badgeW = 86;
+            const badgeH = 28;
+            const badgeX = cx + 30;
+            const badgeY = cy - 144;
+
+            const isImminent = turn.dist <= 20;
+            dc.fillStyle = isImminent ? 'rgba(217, 119, 6, 0.9)' : 'rgba(15, 23, 42, 0.85)';
+            roundRect(dc, badgeX, badgeY, badgeW, badgeH, 6);
+            dc.fill();
+
+            dc.strokeStyle = isImminent ? '#fbbf24' : '#38bdf8';
+            dc.lineWidth = 1.5;
+            roundRect(dc, badgeX, badgeY, badgeW, badgeH, 6);
+            dc.stroke();
+
+            dc.fillStyle = '#ffffff';
+            dc.font = 'bold 13px -apple-system, sans-serif';
+            dc.textAlign = 'center';
+            dc.textBaseline = 'middle';
+            dc.fillText(turn.label, badgeX + badgeW / 2, badgeY + badgeH / 2);
+            dc.restore();
+          }
+        }
+
+        // 8. Off-course alert banner
         if (isOffCourse) {
           const bannerW = 230;
           const bannerH = 36;
@@ -1645,11 +2522,39 @@
           dc.fillText(`OFF COURSE (+${Math.round(minDist)}m)`, cx, bannerY + 23);
         }
 
+        // 9. Completion Notice: Subtle top badge that doesn't obstruct the GPS art drawing
+        if (simState.hasFinished) {
+          dc.save();
+          const badgeW = 180;
+          const badgeH = 28;
+          const badgeX = cx - badgeW / 2;
+          const badgeY = 26;
+
+          dc.fillStyle = 'rgba(15, 23, 42, 0.88)';
+          roundRect(dc, badgeX, badgeY, badgeW, badgeH, 8);
+          dc.fill();
+
+          dc.strokeStyle = '#84cc16';
+          dc.lineWidth = 1.5;
+          roundRect(dc, badgeX, badgeY, badgeW, badgeH, 8);
+          dc.stroke();
+
+          dc.fillStyle = '#a3e635';
+          dc.font = 'bold 13px -apple-system, sans-serif';
+          dc.textAlign = 'center';
+          dc.fillText('🎉 GPS ART COMPLETED', cx, badgeY + 19);
+          dc.restore();
+        }
+
         // Update live metrics readouts
         readoutHeading.innerText = `${Math.round(((heading * 180) / Math.PI + 360) % 360)}°`;
         readoutCtd.innerText = `${minDist.toFixed(1)} m`;
-        if (isOffCourse) {
+        if (simState.isGuideToStart) {
+          readoutStatus.innerHTML = `<span style="color: #38bdf8;">🚩 GUIDE TO START (${Math.round(minDist)}m)</span>`;
+        } else if (isOffCourse) {
           readoutStatus.innerHTML = `<span style="color: #ef4444;">🚨 OFF COURSE (+${Math.round(minDist)}m)</span>`;
+        } else if (simState.hasFinished) {
+          readoutStatus.innerHTML = `<span style="color: #84cc16;">🎉 COMPLETED!</span>`;
         } else {
           readoutStatus.innerHTML = `<span style="color: #84cc16;">✓ ON COURSE</span>`;
         }
@@ -1668,6 +2573,15 @@
         ctx.quadraticCurveTo(x, y, x + radius, y);
         ctx.closePath();
       }
+
+      // Auto-load sample route on initial page load for immediate preview
+      window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          if (btnLoadSample) {
+            btnLoadSample.click();
+          }
+        }, 120);
+      });
     </script>
   </body>
 </html>

@@ -11,6 +11,12 @@
     <string id="DirectionReverse">Reverse (Inverted)</string>
     <string id="ShowDirectionTitle">Show Direction Chevrons</string>
     <string id="ShowDirectionPrompt">Toggle display of 50m / 250m directional chevrons</string>
+    <string id="DimCompletedPathTitle">Dim Completed Path</string>
+    <string id="DimCompletedPathPrompt">Dim traversed path segments while keeping upcoming route bright cyan</string>
+    <string id="ShowTurnCueTitle">Upcoming Turn Cue (&lt;60m)</string>
+    <string id="ShowTurnCuePrompt">Display compact turn indicator badge when approaching corners</string>
+    <string id="ShowCornerAnchorsTitle">Corner Anchor Dots</string>
+    <string id="ShowCornerAnchorsPrompt">Display glowing beacon dots at sharp turning intersections</string>
     <string id="NoRoute">NO ROUTE</string>
     <string id="PasteSettings">PASTE IN APP SETTINGS</string>
     <string id="WaitingGps">WAITING FOR GPS</string>
