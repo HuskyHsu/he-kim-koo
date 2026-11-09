@@ -8,9 +8,8 @@ This document details the system architecture, mathematical algorithms, memory c
 
 ```mermaid
 flowchart TD
-    subgraph WebTool ["Offline Companion Converter (index.html)"]
-        A1["Local GPX Drag & Drop"] --> B["GPX XML Parser"]
-        A2["Public GPX URL"] --> B
+    subgraph WebTool ["Offline Companion Converter (web/index.html)"]
+        A1["Local GPX Drag & Drop / File Select"] --> B["GPX XML Parser"]
         B --> C["Corner Preservation:\nAngles > 45° Locked as Anchors"]
         C --> D["Binary Search Dynamic RDP Algorithm:\nExact Convergence to 100~130 Points"]
         D --> E["Google Polyline Delta Encoding"]
@@ -108,5 +107,5 @@ flowchart TD
 - `source/PolylineDecoder.mc`: Zero-GC Google Polyline decoder
 - `source/RouteApp.mc`: Application lifecycle and live settings listener
 - `source/RouteDataField.mc`: Real-time navigation, vector rendering, and smoothing
-- `index.html`: Offline GPX simplifier and 1:1 Venu 2 Plus AMOLED simulator
+- `web/index.html`: Offline GPX simplifier and 1:1 Venu 2 Plus AMOLED simulator
 - `README.md`: Compilation, sideloading, and operational guide

@@ -25,7 +25,11 @@ Inspired by the bioluminescence of fireflies (_he-kim-koo_ in Taiwanese), this p
 │   ├── RouteApp.mc                     # App lifecycle & settings change listener
 │   ├── RouteDataField.mc               # Core compute, heading-up projection, culling & vector drawing
 │   └── PolylineDecoder.mc              # Zero-GC Google Polyline microdegree decoder
-├── index.html                          # Offline GPX converter & 1:1 Venu 2 Plus simulator
+├── web/                                # Offline GPX converter & 1:1 Venu 2 Plus simulator
+│   ├── index.html                      # Modular Web workstation entry
+│   ├── css/style.css                   # Workbench stylesheet
+│   ├── js/                             # GPX engine, vector canvas & watch simulator
+│   └── routes/                         # Curated GPS art route library (catalog.js)
 ├── docs/
 │   └── architecture-plan.md            # Comprehensive architecture and technical specifications
 └── README.md                           # Project documentation
@@ -35,10 +39,10 @@ Inspired by the bioluminescence of fireflies (_he-kim-koo_ in Taiwanese), this p
 
 ## Quick Start Guide
 
-### Step 1: Generate Route String (`index.html`)
+### Step 1: Generate Route String (`web/index.html` or `make web`)
 
-1. Open [`index.html`](./index.html) in your desktop or mobile browser.
-2. Drag and drop your GPS art `.gpx` file into the page, or enter a public GPX URL.
+1. Open [`web/index.html`](./web/index.html) in your desktop or mobile browser (or run `make web` to launch locally).
+2. Drag and drop your GPS art `.gpx` file into the page (or click to browse).
 3. The offline web tool automatically performs:
    - **Corner Preservation ($> 45^\circ$)**: Locks sharp turning angles to protect cartoon features and text strokes.
    - **Dynamic Binary-Search RDP Simplification**: Automatically adjusts tolerances to converge accurately to **100 ~ 130 points**.

@@ -87,7 +87,7 @@ mkdir -p "$OUTPUT_DIR"
 build_prg() {
     local OUT_FILE="$OUTPUT_DIR/$APP_NAME.prg"
     echo -e "\n${CYAN}Building USB Sideload Binary (.prg) for ${BOLD}$TARGET_DEVICE${NC}..."
-    
+
     "$MONKEYC" \
         -o "$OUT_FILE" \
         -f monkey.jungle \
@@ -114,7 +114,7 @@ build_prg() {
 build_iq() {
     local OUT_FILE="$OUTPUT_DIR/$APP_NAME.iq"
     echo -e "\n${CYAN}Building Store / Beta Package (.iq)...${NC}"
-    
+
     "$MONKEYC" \
         -e \
         -o "$OUT_FILE" \
@@ -138,8 +138,9 @@ build_iq() {
 }
 
 clean() {
-    echo -e "\n${YELLOW}Cleaning build output directory ($OUTPUT_DIR)...${NC}"
-    rm -rf "$OUTPUT_DIR"
+    echo -e "\n${YELLOW}Cleaning build artifacts and temporary files...${NC}"
+    rm -rf "$OUTPUT_DIR" gen mir internal-mir
+    rm -f *.prg *.prg.debug.xml *.iq *-settings.json .DS_Store
     echo -e "${GREEN}✓ Clean complete.${NC}"
 }
 

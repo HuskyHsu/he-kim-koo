@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>He-Kim-Koo • Garmin GPS Breadcrumb Art Workstation</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body class="view-mode-settings">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="brand-title">
+          <span class="brand-dot"></span>
+          He-Kim-Koo
+        </div>
+        <div class="brand-subtitle">Garmin GPS Art Converter & AMOLED Watch Simulator</div>
+      </div>
+
+      <div class="header-meta">
+        <span class="device-badge">Venu 2 Plus • 416×416 AMOLED</span>
+      </div>
+    </header>
+
+    <!-- Mobile Segmented Navigation Bar (< 880px) -->
+    <nav class="mobile-nav-bar">
+      <div class="mobile-tabs">
+        <button class="mobile-tab-btn active" id="mTabSettings">Settings & Import</button>
+        <button class="mobile-tab-btn" id="mTabWatch">Watch Simulator</button>
+        <button class="mobile-tab-btn" id="mTabCanvas">Route Geometry</button>
+      </div>
+    </nav>
+
+    <!-- Main Split Workspace -->
+    <main class="workbench">
+      <!-- Left Panel: Route Management, Simplification & Export -->
+      <aside class="sidebar" id="sidebarPanel">
+        <!-- 1. Curated Route Library -->
+        <section class="section-block">
+          <div class="section-heading">
+            <span>Curated Routes</span>
+            <span style="font-size: 10px; color: var(--text-muted); font-weight: normal">routes/</span>
+          </div>
+
+          <div class="route-selector-box" id="routeCatalogContainer">
+            <!-- Dynamic route list loaded by catalog.js -->
+          </div>
+        </section>
+
+        <!-- 2. Import Custom GPX Track -->
+        <section class="section-block">
+          <div class="section-heading">
+            <span>Import Custom GPX</span>
+          </div>
+
+          <div class="dropzone-strip" id="dropzone">
+            <span>Click to browse or drag & drop .gpx file</span>
+            <input type="file" id="fileInput" accept=".gpx" style="display: none" />
+          </div>
+        </section>
+
+        <!-- 3. Telemetry & Compression Ratio -->
+        <section class="section-block">
+          <div class="section-heading">
+            <span>Route Metrics</span>
+          </div>
+
+          <div class="stats-strip">
+            <div class="stat-cell">
+              <div class="stat-cell-label">Original Points</div>
+              <div class="stat-cell-value" id="valOrigPoints">-</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-cell-label">Simplified Points</div>
+              <div class="stat-cell-value" id="valSimpPoints" style="color: var(--accent-cyan)">-</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-cell-label">Total Distance</div>
+              <div class="stat-cell-value" id="valDistance">-</div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-cell-label">Polyline Chars</div>
+              <div class="stat-cell-value" id="valStrLen" style="color: var(--accent-brand)">-</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Garmin Encoded Polyline Output -->
+        <section class="section-block">
+          <div class="section-heading">
+            <span>Route String (Polyline)</span>
+          </div>
+
+          <div class="polyline-box">
+            <textarea
+              class="polyline-output"
+              id="outputPolyline"
+              rows="8"
+              spellcheck="false"
+              readonly
+              placeholder="Polyline string will be generated automatically after loading..."
+            ></textarea>
+            <button class="btn-primary" id="btnCopy">Copy Route String</button>
+          </div>
+        </section>
+
+        <!-- 5. Watch Transfer Guide -->
+        <section class="section-block">
+          <div class="section-heading">
+            <span>Watch Setup Guide</span>
+          </div>
+
+          <div class="guide-panel">
+            <ol class="guide-steps">
+              <li>Click <strong>"Copy Route String"</strong> above.</li>
+              <li>Open <strong>Garmin Connect</strong> on phone ➔ select <strong>Venu 2 Plus</strong>.</li>
+              <li>Go to <strong>Activities & Apps</strong> ➔ <strong>Data Fields</strong> ➔ <strong>He-Kim-Koo</strong> ➔ <strong>Settings</strong>.</li>
+              <li>Paste into <strong>Route String</strong> and save. Launch Run on your watch to begin!</li>
+            </ol>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Right Main Stage: Watch Simulator & Geometry Canvas -->
+      <section class="stage">
+        <!-- Desktop Toolbar (>= 880px) -->
+        <div class="stage-toolbar">
+          <div class="view-tabs">
+            <button class="view-tab active" id="tabWatchView">Watch Simulator</button>
+            <button class="view-tab" id="tabCanvasView">Route Geometry</button>
+            <button class="view-tab" id="tabSplitView">Split View</button>
+          </div>
+
+          <div style="font-size: 11px; color: var(--text-muted)">
+            Shortcuts: <kbd style="background: var(--bg-card); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-subtle)">Space</kbd> Play/Pause •
+            <kbd style="background: var(--bg-card); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--border-subtle)">R</kbd> Reset
+          </div>
+        </div>
+
+        <div class="view-container">
+          <!-- 1. Garmin Watch Simulator Unit -->
+          <div class="simulator-panel" id="panelWatchSim">
+            <!-- Watch Housing -->
+            <div class="watch-housing-container">
+              <div class="watch-housing" id="watchHousing">
+                <div id="hapticBadge" class="haptic-alert-pill">Off-Course Alert</div>
+                <div class="watch-display">
+                  <canvas id="watchCanvas" width="416" height="416"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Simulator Controls -->
+            <div class="sim-deck">
+              <!-- Group 1: 1:1 Garmin Watch Settings -->
+              <div class="sim-control-group">
+                <div class="sim-group-header">
+                  <span class="sim-group-title">Garmin App Settings</span>
+                  <span class="sim-group-badge">1:1 Watch Match</span>
+                </div>
+
+                <!-- 1. routeDirection -->
+                <div class="sim-row">
+                  <label>Route Direction</label>
+                  <button id="btnSimDirection" style="padding: 4px 10px; font-size: 11px; min-height: 30px">Forward (Original)</button>
+                </div>
+
+                <!-- 2. showDirection -->
+                <div class="sim-row">
+                  <label>Show Direction Chevrons</label>
+                  <button id="btnToggleDirection" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON (50m/250m)</button>
+                </div>
+
+                <!-- 3. dimCompletedPath -->
+                <div class="sim-row">
+                  <label>Dim Completed Path</label>
+                  <button id="btnToggleDim" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON (Dimmed)</button>
+                </div>
+
+                <!-- 4. showTurnCue -->
+                <div class="sim-row">
+                  <label>Upcoming Turn Cue (&lt;60m)</label>
+                  <button id="btnToggleTurnCue" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON</button>
+                </div>
+
+                <!-- 5. showCornerAnchors -->
+                <div class="sim-row">
+                  <label>Corner Anchor Dots</label>
+                  <button id="btnToggleAnchors" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON</button>
+                </div>
+
+                <!-- 6. mapRange -->
+                <div class="sim-row">
+                  <label>Map View Range</label>
+                  <input type="range" id="simRangeSlider" min="50" max="1000" value="175" step="5" />
+                  <span class="sim-row-value" id="simRangeVal">175m</span>
+                </div>
+              </div>
+
+              <!-- Group 2: Simulation Controls -->
+              <div class="sim-control-group">
+                <div class="sim-group-header">
+                  <span class="sim-group-title">Simulation Controls</span>
+                  <span class="sim-group-badge" style="color: var(--accent-cyan); background: var(--accent-cyan-light); border-color: rgba(2, 132, 199, 0.25);">Simulator Only</span>
+                </div>
+
+                <!-- Playback & Pace Controls -->
+                <div class="sim-action-row">
+                  <button id="btnSimPlay" class="btn-primary" style="flex: 1">Start Run Simulation</button>
+                  <button id="btnSimReset">Reset</button>
+                  <select id="simSpeedSelect" title="Simulation Speed">
+                    <option value="1">1x Real Pace</option>
+                    <option value="3" selected>3x Fast Preview</option>
+                    <option value="8">8x Warp Speed</option>
+                  </select>
+                </div>
+
+                <!-- Compass Heading Trim -->
+                <div class="sim-row">
+                  <label>Heading Trim</label>
+                  <input type="range" id="simHeadingSlider" min="0" max="360" value="0" />
+                  <span class="sim-row-value" id="simHeadingVal">0°</span>
+                </div>
+
+                <!-- Scenario Triggers -->
+                <div class="scenario-buttons">
+                  <button id="btnTestStart">Start Point (Seg 0)</button>
+                  <button id="btnTestMidStart">Mid Route (Seg 4)</button>
+                  <button id="btnSimDeviate" class="btn-danger">Off-Course Test (+45m)</button>
+                  <button id="btnTestFarAway">Far Away Preview</button>
+                </div>
+              </div>
+
+              <!-- Live Telemetry Readout -->
+              <div class="telemetry-readout">
+                <div>Heading <span class="highlight" id="readoutHeading">0°</span></div>
+                <div>Cross Track (CTD) <span class="highlight" id="readoutCtd">0.0 m</span></div>
+                <div>Status <span class="highlight" id="readoutStatus" style="color: var(--accent-green)">On Course</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Route Geometry Canvas View -->
+          <div class="canvas-panel" id="panelRouteCanvas" style="display: none">
+            <div class="canvas-header">
+              <span>Vector Trail & Corner Anchors Analysis</span>
+              <span id="canvasPointCount" style="font-family: var(--font-mono); font-size: 11px">-</span>
+            </div>
+
+            <div class="canvas-wrapper">
+              <canvas id="trailCanvas"></canvas>
+            </div>
+
+            <div class="canvas-legend-strip">
+              <div class="legend-chip">
+                <span class="legend-chip-dot" style="background: #10b981"></span>
+                <span>Simplified Track (100~130 pts)</span>
+              </div>
+              <div class="legend-chip">
+                <span class="legend-chip-dot" style="background: #0284c7"></span>
+                <span>Corner Anchors (&gt;42°)</span>
+              </div>
+              <div class="legend-chip">
+                <span class="legend-chip-dot" style="background: #ffffff; border: 2px solid #10b981"></span>
+                <span>Start Point</span>
+              </div>
+              <div class="legend-chip">
+                <span class="legend-chip-dot" style="background: #ef4444"></span>
+                <span>End Point</span>
+              </div>
+              <div class="legend-chip">
+                <span class="legend-chip-dot" style="background: #cbd5e1"></span>
+                <span>Raw GPS Points</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Mobile Sticky Quick Action Bar -->
+    <div class="mobile-sticky-bar">
+      <button class="btn-primary" id="mBtnPlayToggle">Start Simulation</button>
+      <button id="mBtnQuickCopy">Copy Route String</button>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast">
+      <span class="toast-indicator"></span>
+      <span id="toastMessage">Copied to clipboard</span>
+    </div>
+
+    <!-- External Route Catalog Registry -->
+    <script src="routes/catalog.js"></script>
+
+    <!-- Core GPX Processing & Simplification Engine -->
+    <script src="js/gpx-engine.js"></script>
+
+    <!-- 2D Vector Trail Inspector Canvas -->
+    <script src="js/trail-canvas.js"></script>
+
+    <!-- 1:1 Garmin AMOLED Watch Simulator -->
+    <script src="js/watch-simulator.js"></script>
+
+    <!-- Main Workstation App Controller -->
+    <script src="js/app.js"></script>
+  </body>
+</html>
