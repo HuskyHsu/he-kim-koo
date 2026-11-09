@@ -37,8 +37,8 @@ class RouteDataField extends WatchUi.DataField {
     private var mShowTurnCue as Boolean = true;
     private var mShowCornerAnchors as Boolean = true;
 
-    // Dynamic path dimming: Visited Segments tracking & arbitrary start / loop support
-    private var mVisitedSegments as Array<Boolean> = [] as Array<Boolean>;
+    // Dynamic path dimming: Packed 32-bit bitfield for visited segments (5 integers = 160 bits, < 20 Bytes heap)
+    private var mVisitedBits as Array<Number> = [0, 0, 0, 0, 0] as Array<Number>;
     private var mCurrentSegmentIndex as Number = 0;
     private var mCurrentSegmentProgress as Float = 0.0f;
 
@@ -51,18 +51,39 @@ class RouteDataField extends WatchUi.DataField {
     private var mTurnDist as Number = -1;       // Distance in meters to next turn (-1 = none)
     private var mTurnDirection as Number = 0;   // +1 = Right, -1 = Left
 
-    // Trail circular buffer capacity (80 points covers ~200m smooth stream, takes ~320 Bytes)
-    private const TRAIL_CAPACITY = 80;
+    // Trail circular buffer capacity (Plan A: 24 points with 5m step covers ~120m smooth stream, takes ~96 Bytes)
+    private const TRAIL_CAPACITY = 24;
 
     // Flat integer route coordinates [lat0, lon0, lat1, lon1, ...] in microdegrees (1e-5 deg)
     private var mPoints as Array<Number> = [] as Array<Number>;
     private var mPointCount as Number = 0;
 
-    // Directional chevron markers (50m intervals, 250m multiples are large & prominent)
-    // Flat array: [lat0, lon0, ux10k0, uy10k0, ...]
-    private var mChevrons as Array<Number> = [] as Array<Number>;
-    private var mChevronCount as Number = 0;
+    // Cumulative distances of points in meters [0.0, d1, d2, ...] (< 520 Bytes)
+    // Used for on-demand viewport chevron rendering without storing 500+ chevron objects in memory.
+    private var mCumDist as Array<Float> = [] as Array<Float>;
     private var mShowDirection as Boolean = true;
+
+    // Visited bitfield helper functions
+    private function markSegmentVisited(idx as Number) as Void {
+        var word = idx / 32;
+        if (word >= 0 && word < mVisitedBits.size()) {
+            mVisitedBits[word] = mVisitedBits[word] | (1 << (idx % 32));
+        }
+    }
+
+    private function isSegmentVisited(idx as Number) as Boolean {
+        var word = idx / 32;
+        if (word >= 0 && word < mVisitedBits.size()) {
+            return (mVisitedBits[word] & (1 << (idx % 32))) != 0;
+        }
+        return false;
+    }
+
+    private function clearVisitedSegments() as Void {
+        for (var b = 0; b < mVisitedBits.size(); b++) {
+            mVisitedBits[b] = 0;
+        }
+    }
 
     // Real-time sensor & GPS state
     private var mHasGps as Boolean = false;
@@ -238,8 +259,10 @@ class RouteDataField extends WatchUi.DataField {
             mBoxHeightMeters = 0.0f;
         }
 
-        // Precompute directional chevrons along cumulative route distance (50m intervals)
+        // Calculate cumulative route distances for on-demand chevron rendering (<520 Bytes)
         if (mPointCount >= 2) {
+            mCumDist = new [mPointCount] as Array<Float>;
+            mCumDist[0] = 0.0f;
             var totalMeters = 0.0f;
             for (var i = 0; i < mPointCount - 1; i++) {
                 var p1Idx = i * 2;
@@ -247,78 +270,16 @@ class RouteDataField extends WatchUi.DataField {
                 var dx = (mPoints[p2Idx + 1] - mPoints[p1Idx + 1]) * 1.113195f * mRouteCosLat;
                 var dy = (mPoints[p2Idx] - mPoints[p1Idx]) * 1.111329f;
                 totalMeters += Math.sqrt(dx * dx + dy * dy);
+                mCumDist[i + 1] = totalMeters;
             }
             mTotalRouteMeters = totalMeters;
-
-            var estChevrons = (totalMeters / 50.0f).toNumber();
-            if (estChevrons > 500) {
-                estChevrons = 500;
-            }
-
-            mChevrons = new [estChevrons * 4] as Array<Number>;
-            mChevronCount = 0;
-
-            var targetDist = 50.0f;
-            var currentDist = 0.0f;
-
-            for (var seg = 0; seg < mPointCount - 1; seg++) {
-                if (mChevronCount >= estChevrons) {
-                    break;
-                }
-
-                var i1 = seg * 2;
-                var i2 = (seg + 1) * 2;
-
-                var segLon1 = mPoints[i1 + 1];
-                var segLat1 = mPoints[i1];
-                var segLon2 = mPoints[i2 + 1];
-                var segLat2 = mPoints[i2];
-
-                var segDx = (segLon2 - segLon1) * 1.113195f * mRouteCosLat;
-                var segDy = (segLat2 - segLat1) * 1.111329f;
-                var segLen = Math.sqrt(segDx * segDx + segDy * segDy);
-
-                if (segLen < 0.1f) {
-                    continue;
-                }
-
-                var ux = segDx / segLen;
-                var uy = segDy / segLen;
-                var ux10k = (ux * 10000.0f).toNumber();
-                var uy10k = (uy * 10000.0f).toNumber();
-
-                while (targetDist <= currentDist + segLen && mChevronCount < estChevrons) {
-                    var t = (targetDist - currentDist) / segLen;
-                    var cLat = (segLat1 + t * (segLat2 - segLat1)).toNumber();
-                    var cLon = (segLon1 + t * (segLon2 - segLon1)).toNumber();
-
-                    var writeIdx = mChevronCount * 4;
-                    mChevrons[writeIdx] = cLat;
-                    mChevrons[writeIdx + 1] = cLon;
-                    mChevrons[writeIdx + 2] = ux10k;
-                    mChevrons[writeIdx + 3] = uy10k;
-
-                    mChevronCount++;
-                    targetDist += 50.0f;
-                }
-
-                currentDist += segLen;
-            }
         } else {
-            mChevrons = [] as Array<Number>;
-            mChevronCount = 0;
+            mCumDist = [] as Array<Float>;
+            mTotalRouteMeters = 0.0f;
         }
 
-        // Initialize Visited Segments tracking
-        if (mPointCount >= 2) {
-            var numSegs = mPointCount - 1;
-            mVisitedSegments = new [numSegs] as Array<Boolean>;
-            for (var s = 0; s < numSegs; s++) {
-                mVisitedSegments[s] = false;
-            }
-        } else {
-            mVisitedSegments = [] as Array<Boolean>;
-        }
+        // Initialize Visited Segments bitfield (< 20 Bytes)
+        clearVisitedSegments();
         mCurrentSegmentIndex = 0;
         mCurrentSegmentProgress = 0.0f;
         mTurnDist = -1;
@@ -478,10 +439,10 @@ class RouteDataField extends WatchUi.DataField {
         var latRad = (latDeg * Math.PI / 180.0d).toFloat();
         mCosLat = Math.cos(latRad);
 
-        // 4. Record smooth trail points (every >2.5m)
+        // 4. Record smooth trail points (every >5m, Plan A)
         var dLatFromLast = (mCurrLatMicro - mLastTrailLat) * 1.111329f;
         var dLonFromLast = (mCurrLonMicro - mLastTrailLon) * 1.113195f * mCosLat;
-        if (dLatFromLast * dLatFromLast + dLonFromLast * dLonFromLast > 6.25f || mTrailCount == 0) {
+        if (dLatFromLast * dLatFromLast + dLonFromLast * dLonFromLast > 25.0f || mTrailCount == 0) {
             var writeIdx = mTrailHead * 2;
             mTrailPoints[writeIdx] = mCurrLatMicro;
             mTrailPoints[writeIdx + 1] = mCurrLonMicro;
@@ -511,6 +472,12 @@ class RouteDataField extends WatchUi.DataField {
         if (mPointCount < 2) {
             mIsOffCourse = false;
             mTurnDist = -1;
+            return;
+        }
+
+        // Zero-Motion Idle Throttling (saves ~80% CPU during traffic light stops or water breaks)
+        var isStationary = (speed != null && speed < 0.35f && (dLatFromLast * dLatFromLast + dLonFromLast * dLonFromLast < 4.0f));
+        if (isStationary && !mPreviewMode) {
             return;
         }
 
@@ -615,15 +582,13 @@ class RouteDataField extends WatchUi.DataField {
         if (minDist <= 45.0f) {
             mCurrentSegmentIndex = bestSeg;
             mCurrentSegmentProgress = bestT;
-            if (mCurrentSegmentIndex >= 0 && mCurrentSegmentIndex < mVisitedSegments.size()) {
-                mVisitedSegments[mCurrentSegmentIndex] = true;
-            }
+            markSegmentVisited(mCurrentSegmentIndex);
 
             // Loop wrap-around support: if at the end of route but earlier segments remain unvisited
             if (mCurrentSegmentIndex >= mPointCount - 2 && bestT > 0.85f) {
                 var hasUnvisited = false;
-                for (var v = 0; v < mVisitedSegments.size(); v++) {
-                    if (!mVisitedSegments[v]) {
+                for (var v = 0; v < mPointCount - 1; v++) {
+                    if (!isSegmentVisited(v)) {
                         hasUnvisited = true;
                         break;
                     }
@@ -761,7 +726,7 @@ class RouteDataField extends WatchUi.DataField {
             var sx2 = cx + (bx * cosH - by * sinH) * zoomScale;
             var sy2 = cy - (by * cosH + bx * sinH) * zoomScale;
 
-            var isVisited = (mVisitedSegments != null && i < mVisitedSegments.size() && mVisitedSegments[i]);
+            var isVisited = isSegmentVisited(i);
             var isCurrent = (i == mCurrentSegmentIndex);
 
             if (mDimCompletedPath && isVisited && !isCurrent) {
@@ -801,67 +766,77 @@ class RouteDataField extends WatchUi.DataField {
                 dc.fillCircle(sx1.toNumber(), sy1.toNumber(), 2);
                 dc.fillCircle(sx2.toNumber(), sy2.toNumber(), 2);
             }
-        }
 
-        // 5. Render directional chevrons (50m intervals, 250m multiples are large & prominent)
-        if (mShowDirection) {
-            for (var k = 0; k < mChevronCount; k++) {
-                var cIdx = k * 4;
-                var cLat = mChevrons[cIdx];
-                var cLon = mChevrons[cIdx + 1];
+            // 5. On-demand directional chevrons rendered directly on visible segments (50m / 250m)
+            if (mShowDirection && mCumDist != null && i < mCumDist.size() - 1) {
+                var startD = mCumDist[i];
+                var endD = mCumDist[i + 1];
+                var segLenM = endD - startD;
 
-                var ax = (cLon - mCurrLonMicro) * 1.113195f * mCosLat;
-                var ay = (cLat - mCurrLatMicro) * 1.111329f;
+                if (segLenM >= 1.0f) {
+                    var sDx = sx2 - sx1;
+                    var sDy = sy2 - sy1;
+                    var sLen = Math.sqrt(sDx * sDx + sDy * sDy);
 
-                if (ax * ax + ay * ay > mCullDistSq) {
-                    continue;
-                }
+                    if (sLen > 2.0f) {
+                        var sux = sDx / sLen;
+                        var suy = sDy / sLen;
+                        var snx = -suy;
+                        var sny = sux;
 
-                var sx = cx + (ax * cosH - ay * sinH) * zoomScale;
-                var sy = cy - (ay * cosH + ax * sinH) * zoomScale;
+                        var kStart = (startD / 50.0f).toNumber() + 1;
+                        var curTarget = kStart * 50.0f;
 
-                if (sx < -25 || sx > w + 25 || sy < -25 || sy > h + 25) {
-                    continue;
-                }
+                        while (curTarget < endD) {
+                            var ct = (curTarget - startD) / segLenM;
+                            var csx = sx1 + ct * sDx;
+                            var csy = sy1 + ct * sDy;
 
-                var ux = mChevrons[cIdx + 2].toFloat() / 10000.0f;
-                var uy = mChevrons[cIdx + 3].toFloat() / 10000.0f;
+                            if (csx >= -25 && csx <= w + 25 && csy >= -25 && csy <= h + 25) {
+                                var isMajor = ((kStart % 5) == 0);
 
-                // 2D Rotation of unit vector into screen coordinates
-                var sux = (ux * cosH - uy * sinH);
-                var suy = -(uy * cosH + ux * sinH);
-                var snx = -suy;
-                var sny = sux;
+                                // Check if this chevron is on completed / traversed path
+                                var isChevronPassed = false;
+                                if (i < mCurrentSegmentIndex || (isVisited && !isCurrent)) {
+                                    isChevronPassed = true;
+                                } else if (isCurrent && ct <= mCurrentSegmentProgress) {
+                                    isChevronPassed = true;
+                                }
 
-                var isMajor = ((k + 1) % 5 == 0); // 250m, 500m, 750m, 1000m...
+                                var isDimmed = (mDimCompletedPath && isChevronPassed);
+                                var chColor = isDimmed ? COLOR_DIMMED_CYAN : COLOR_CYAN;
+                                var chPenMajor = isDimmed ? 2 : 4;
+                                var chPenMinor = isDimmed ? 1 : 2;
 
-                if (isMajor) {
-                    // Major 250m landmark: prominent large single chevron in Electric Cyan (#00e5ff)
-                    dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
-                    dc.setPenWidth(4);
+                                if (isMajor) {
+                                    dc.setColor(chColor, Graphics.COLOR_TRANSPARENT);
+                                    dc.setPenWidth(chPenMajor);
+                                    var tipX = csx + sux * 9.0f;
+                                    var tipY = csy + suy * 9.0f;
+                                    var leftX = csx - sux * 6.0f + snx * 10.0f;
+                                    var leftY = csy - suy * 6.0f + sny * 10.0f;
+                                    var rightX = csx - sux * 6.0f - snx * 10.0f;
+                                    var rightY = csy - suy * 6.0f - sny * 10.0f;
+                                    dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                                    dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                                } else {
+                                    dc.setColor(chColor, Graphics.COLOR_TRANSPARENT);
+                                    dc.setPenWidth(chPenMinor);
+                                    var tipX = csx + sux * 5.0f;
+                                    var tipY = csy + suy * 5.0f;
+                                    var leftX = csx - sux * 3.0f + snx * 5.0f;
+                                    var leftY = csy - suy * 3.0f + sny * 5.0f;
+                                    var rightX = csx - sux * 3.0f - snx * 5.0f;
+                                    var rightY = csy - suy * 3.0f - sny * 5.0f;
+                                    dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                                    dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                                }
+                            }
 
-                    var tipX = sx + sux * 9.0f;
-                    var tipY = sy + suy * 9.0f;
-                    var leftX = sx - sux * 6.0f + snx * 10.0f;
-                    var leftY = sy - suy * 6.0f + sny * 10.0f;
-                    var rightX = sx - sux * 6.0f - snx * 10.0f;
-                    var rightY = sy - suy * 6.0f - sny * 10.0f;
-                    dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
-                    dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
-                } else {
-                    // Minor 50m chevron: discreet small single chevron (span ±5px, pen width 2px)
-                    dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
-                    dc.setPenWidth(2);
-
-                    var tipX = sx + sux * 5.0f;
-                    var tipY = sy + suy * 5.0f;
-                    var leftX = sx - sux * 3.0f + snx * 5.0f;
-                    var leftY = sy - suy * 3.0f + sny * 5.0f;
-                    var rightX = sx - sux * 3.0f - snx * 5.0f;
-                    var rightY = sy - suy * 3.0f - sny * 5.0f;
-
-                    dc.drawLine(leftX.toNumber(), leftY.toNumber(), tipX.toNumber(), tipY.toNumber());
-                    dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
+                            kStart++;
+                            curTarget = kStart * 50.0f;
+                        }
+                    }
                 }
             }
         }
@@ -887,7 +862,7 @@ class RouteDataField extends WatchUi.DataField {
                     continue;
                 }
 
-                var isPassed = (mDimCompletedPath && mVisitedSegments != null && cPointIdx < mVisitedSegments.size() && mVisitedSegments[cPointIdx]);
+                var isPassed = (mDimCompletedPath && isSegmentVisited(cPointIdx));
 
                 if (isPassed) {
                     // Dimmed past corner dot
@@ -905,10 +880,13 @@ class RouteDataField extends WatchUi.DataField {
             }
         }
 
-        // 6. Render smooth firefly comet tail (bioluminescent cold lime green #a3e635)
-        if (mTrailCount > 0) {
+        // 6. Render smooth firefly trail (pure sleek lime green line)
+        if (mTrailCount > 1) {
             var startIdx = (mTrailHead - mTrailCount + TRAIL_CAPACITY) % TRAIL_CAPACITY;
             var numSegs = mTrailCount - 1;
+
+            dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
+            dc.setPenWidth(3);
 
             for (var t = 0; t < numSegs; t++) {
                 var p1Idx = ((startIdx + t) % TRAIL_CAPACITY) * 2;
@@ -919,23 +897,11 @@ class RouteDataField extends WatchUi.DataField {
                 var tax2 = (mTrailPoints[p2Idx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
                 var tay2 = (mTrailPoints[p2Idx] - mCurrLatMicro) * 1.111329f;
 
-                if (tax1 * tax1 + tay1 * tay1 <= mCullDistSq) {
+                if (tax1 * tax1 + tay1 * tay1 <= mCullDistSq || tax2 * tax2 + tay2 * tay2 <= mCullDistSq) {
                     var tsx1 = cx + (tax1 * cosH - tay1 * sinH) * zoomScale;
                     var tsy1 = cy - (tay1 * cosH + tax1 * sinH) * zoomScale;
                     var tsx2 = cx + (tax2 * cosH - tay2 * sinH) * zoomScale;
                     var tsy2 = cy - (tay2 * cosH + tax2 * sinH) * zoomScale;
-
-                    var ratio = (numSegs > 0) ? (t.toFloat() / numSegs.toFloat()) : 1.0f;
-                    if (ratio < 0.35f) {
-                        dc.setColor(COLOR_LIME_FAINT, Graphics.COLOR_TRANSPARENT);
-                        dc.setPenWidth(2);
-                    } else if (ratio < 0.70f) {
-                        dc.setColor(COLOR_LIME_MID, Graphics.COLOR_TRANSPARENT);
-                        dc.setPenWidth(3);
-                    } else {
-                        dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
-                        dc.setPenWidth(5);
-                    }
 
                     dc.drawLine(tsx1.toNumber(), tsy1.toNumber(), tsx2.toNumber(), tsy2.toNumber());
                 }
@@ -948,8 +914,6 @@ class RouteDataField extends WatchUi.DataField {
             var ltsx = cx + (ltax * cosH - ltay * sinH) * zoomScale;
             var ltsy = cy - (ltay * cosH + ltax * sinH) * zoomScale;
 
-            dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(5);
             dc.drawLine(ltsx.toNumber(), ltsy.toNumber(), cx, cy + 4);
         }
 
@@ -1027,53 +991,53 @@ class RouteDataField extends WatchUi.DataField {
             dc.drawText(cx, bannerY + 6, Graphics.FONT_XTINY, alertText, Graphics.TEXT_JUSTIFY_CENTER);
         }
 
-        // 9. Upcoming Turn Cue Badge (< 60m from corner)
+        // 9. Upcoming Turn Cue Badge (< 60m from corner) - Enlarged, Top-Centered & High-Contrast
         if (mShowTurnCue && !mIsOffCourse && mTurnDist >= 0 && mTurnDist <= 60) {
-            var badgeW = 86;
-            var badgeH = 28;
-            var badgeX = cx + 30;
-            var badgeY = cy - 144;
+            var badgeW = 144;
+            var badgeH = 38;
+            var badgeX = cx - (badgeW / 2);
+            var badgeY = 26;
 
             var isImminent = (mTurnDist <= 20);
             var bgColor = isImminent ? COLOR_AMBER_BG : COLOR_BADGE_BG;
             var borderColor = isImminent ? COLOR_AMBER_BORDER : COLOR_BADGE_BORDER;
 
-            // Background & border
+            // Background & prominent border
             dc.setColor(bgColor, bgColor);
-            dc.fillRoundedRectangle(badgeX, badgeY, badgeW, badgeH, 6);
+            dc.fillRoundedRectangle(badgeX, badgeY, badgeW, badgeH, 8);
             dc.setColor(borderColor, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(2);
-            dc.drawRoundedRectangle(badgeX, badgeY, badgeW, badgeH, 6);
+            dc.setPenWidth(3);
+            dc.drawRoundedRectangle(badgeX, badgeY, badgeW, badgeH, 8);
 
-            // Vector Turn Arrow
+            // Bold Vector Turn Arrow (Pen width 3)
             dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(2);
+            dc.setPenWidth(3);
 
-            var arrowCornerY = badgeY + 9;
-            var arrowStemY = badgeY + 19;
+            var arrowCornerY = badgeY + 11;
+            var arrowStemY = badgeY + 26;
 
             if (mTurnDirection > 0) {
-                // Right Turn Arrow
-                var arrowStemX = badgeX + 11;
-                var arrowHeadX = badgeX + 22;
+                // Bold Right Turn Arrow
+                var arrowStemX = badgeX + 16;
+                var arrowHeadX = badgeX + 36;
                 dc.drawLine(arrowStemX, arrowStemY, arrowStemX, arrowCornerY);
                 dc.drawLine(arrowStemX, arrowCornerY, arrowHeadX, arrowCornerY);
-                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX - 4, arrowCornerY - 4);
-                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX - 4, arrowCornerY + 4);
+                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX - 6, arrowCornerY - 6);
+                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX - 6, arrowCornerY + 6);
             } else {
-                // Left Turn Arrow
-                var arrowStemX = badgeX + 22;
-                var arrowHeadX = badgeX + 11;
+                // Bold Left Turn Arrow
+                var arrowStemX = badgeX + 36;
+                var arrowHeadX = badgeX + 16;
                 dc.drawLine(arrowStemX, arrowStemY, arrowStemX, arrowCornerY);
                 dc.drawLine(arrowStemX, arrowCornerY, arrowHeadX, arrowCornerY);
-                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX + 4, arrowCornerY - 4);
-                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX + 4, arrowCornerY + 4);
+                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX + 6, arrowCornerY - 6);
+                dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX + 6, arrowCornerY + 6);
             }
 
-            // Distance text e.g. "45m"
+            // Bold Distance text e.g. "45m" (Using FONT_TINY instead of FONT_XTINY)
             var distText = mTurnDist + "m";
             dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(badgeX + 28, badgeY + (badgeH / 2), Graphics.FONT_XTINY, distText, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(badgeX + 48, badgeY + (badgeH / 2), Graphics.FONT_TINY, distText, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 

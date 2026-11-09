@@ -67,11 +67,11 @@ flowchart TD
 1. **Color Hierarchy**:
    - Background: AMOLED Deep Night Black (`COLOR_BLACK`).
    - **Firefly Cursor (Runner)**: Sleek modern GPS Navigation Chevron with bioluminescent cold lime-green body (`#a3e635` / `COLOR_GREEN`), 2px crisp white outline, and a bright white guidance core dot.
-   - **Trailing Wake (80-point stream + 20m ground-locked sparks)**:
-     - **Comet Stream Line**: 80-point circular ring buffer covering ~200 meters. Tapers smoothly from 5.0px near the runner down to 1.8px at the tail end, providing silky cornering visualization.
+   - **Trailing Wake (24-point stream + 20m ground-locked sparks)**:
+     - **Comet Stream Line**: 24-point circular ring buffer covering ~120 meters (5m step threshold). Tapers smoothly from 5.0px near the runner down to 1.8px at the tail end, providing silky cornering visualization with 70% lower drawing overhead.
      - **20m Milestone Sparks (10 dots covering 200m)**: Points are locked to absolute geographic coordinates (Ground-Locked Coordinates). When the runner advances every 20.0 meters, a spark is planted on the ground and **remains stationary in place**, fading out gracefully over distance/time. Runners can instantly gauge running distance ($10 \times 20\text{m} = 200\text{m}$).
    - **Route Blueprint (Unified Full Course)**: Electric Cyan (`COLOR_BLUE` / `#00e5ff`, 4px width), high-contrast blueprint guiding the runner forward. Completed segments retain the same cyan color to eliminate state tracking and redundant data processing.
-   - **Hierarchical Directional Chevrons (50m & 250m Gauge)**: Chevrons rendered along the cumulative route in matching Electric Cyan (`#00e5ff`). Minor chevrons (`>`, width 10px, 2px pen) appear every 50m, while major landmark chevrons (`>`, bold single chevron, width 20px, 4px pen) appear every 250m ($50\text{m} \times 5$). Runners can instantly gauge distances by counting the prominent 250m markers. Toggleable via `showDirection` in App Settings.
+   - **Hierarchical Directional Chevrons (On-Demand 50m & 250m Gauge)**: Chevrons rendered on-the-fly directly along visible segments using cumulative distance lookup `mCumDist`, completely eliminating the static `mChevrons` array (saving ~7KB heap). Minor chevrons (`>`, width 10px, 2px pen) appear every 50m, while major landmark chevrons (`>`, bold single chevron, width 20px, 4px pen) appear every 250m ($50\text{m} \times 5$). Runners can instantly gauge distances by counting the prominent 250m markers. Toggleable via `showDirection` in App Settings.
    - **Forward / Reverse Direction Inversion**: Configurable in App Settings (`routeDirection`: 0 = Forward, 1 = Reverse). Reverses the coordinate array in-place during `reloadRoute()` with zero runtime overhead.
 
 ### 2.4 High-Efficiency Route Distance Calculation

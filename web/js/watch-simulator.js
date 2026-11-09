@@ -9,11 +9,24 @@ const watchCtx = watchCanvas ? watchCanvas.getContext('2d') : null;
 const btnSimPlay = document.getElementById('btnSimPlay');
 const btnSimReset = document.getElementById('btnSimReset');
 const simSpeedSelect = document.getElementById('simSpeedSelect');
+
+// Settings & Controls
+const timelineSlider = document.getElementById('timelineSlider');
+const timelineDistLabel = document.getElementById('timelineDistLabel');
+const btnDirForward = document.getElementById('btnDirForward');
+const btnDirReverse = document.getElementById('btnDirReverse');
+const toggleDirection = document.getElementById('toggleDirection');
+const toggleDim = document.getElementById('toggleDim');
+const toggleTurnCue = document.getElementById('toggleTurnCue');
+const toggleAnchors = document.getElementById('toggleAnchors');
+
+// Backward compatibility references (if old markup exists)
 const btnSimDirection = document.getElementById('btnSimDirection');
 const btnToggleDirection = document.getElementById('btnToggleDirection');
 const btnToggleDim = document.getElementById('btnToggleDim');
 const btnToggleTurnCue = document.getElementById('btnToggleTurnCue');
 const btnToggleAnchors = document.getElementById('btnToggleAnchors');
+
 const btnSimDeviate = document.getElementById('btnSimDeviate');
 const simRangeSlider = document.getElementById('simRangeSlider');
 const simRangeVal = document.getElementById('simRangeVal');
@@ -98,6 +111,7 @@ function triggerHaptic(type = 'vibe', message = 'Off-Course Alert (+45m)') {
 
 function calcRouteDistances() {
   simState.totalRouteDist = 0;
+  simState.cumDistances = [0];
   if (!simRoute || simRoute.length < 2) return;
   let minLat = simRoute[0].lat,
     maxLat = simRoute[0].lat;
@@ -105,7 +119,9 @@ function calcRouteDistances() {
     maxLon = simRoute[0].lon;
 
   for (let i = 0; i < simRoute.length - 1; i++) {
-    simState.totalRouteDist += calcDistanceMeters(simRoute[i], simRoute[i + 1]);
+    const d = calcDistanceMeters(simRoute[i], simRoute[i + 1]);
+    simState.totalRouteDist += d;
+    simState.cumDistances.push(simState.totalRouteDist);
   }
 
   for (let i = 0; i < simRoute.length; i++) {
@@ -127,6 +143,65 @@ function calcRouteDistances() {
   simState.maxLat = maxLat;
   simState.minLon = minLon;
   simState.maxLon = maxLon;
+}
+
+function updateTimelineUI(currDist) {
+  const total = simState.totalRouteDist || 0;
+  if (timelineDistLabel) {
+    timelineDistLabel.innerText = `${(currDist / 1000).toFixed(1)} / ${(total / 1000).toFixed(1)} km`;
+  }
+  if (timelineSlider && document.activeElement !== timelineSlider) {
+    const pct = total > 0 ? Math.min(1000, Math.round((currDist / total) * 1000)) : 0;
+    timelineSlider.value = pct;
+  }
+}
+
+function seekToDistance(targetMeters) {
+  if (!simRoute || simRoute.length < 2 || !simState.cumDistances) return;
+  targetMeters = Math.max(0, Math.min(targetMeters, simState.totalRouteDist));
+
+  let seg = 0;
+  while (seg < simRoute.length - 2 && simState.cumDistances[seg + 1] <= targetMeters) {
+    seg++;
+  }
+  const segStartDist = simState.cumDistances[seg] || 0;
+  const pA = simRoute[seg];
+  const pB = simRoute[seg + 1];
+  const segLen = calcDistanceMeters(pA, pB);
+  const progress = segLen > 0.001 ? Math.max(0, Math.min(1.0, (targetMeters - segStartDist) / segLen)) : 0;
+
+  simState.segIdx = seg;
+  simState.segProgress = progress;
+  simState.hasFinished = false;
+
+  for (let i = 0; i < visitedSegments.length; i++) {
+    visitedSegments[i] = (i < seg);
+  }
+
+  const baseLat = pA.lat + (pB.lat - pA.lat) * progress;
+  const baseLon = pA.lon + (pB.lon - pA.lon) * progress;
+  simState.currLat = baseLat;
+  simState.currLon = baseLon;
+
+  const vLat = pB.lat - pA.lat;
+  const vLon = (pB.lon - pA.lon) * Math.cos((baseLat * Math.PI) / 180);
+  const natHeading = Math.atan2(vLon, vLat);
+
+  if (!simState.manualHeading) {
+    simState.targetHeadingRad = natHeading;
+    simState.renderHeadingRad = natHeading;
+    const deg = Math.round(((natHeading * 180) / Math.PI + 360) % 360);
+    if (simHeadingSlider) simHeadingSlider.value = deg;
+    if (simHeadingVal) simHeadingVal.innerText = deg + '°';
+  }
+
+  simTrail = [{ lat: baseLat, lon: baseLon }];
+  simSparks = [{ lat: baseLat, lon: baseLon }];
+  simState.lastTrailLat = baseLat;
+  simState.lastTrailLon = baseLon;
+
+  updateTimelineUI(targetMeters);
+  drawWatchScreen();
 }
 
 function getNextTurnCue() {
@@ -293,6 +368,9 @@ function resetSimulationState(startSegIdx = 0) {
   if (btnSimDeviate) {
     btnSimDeviate.innerText = 'Off-Course Test (+45m)';
   }
+
+  const currentDist = (simState.cumDistances && simState.cumDistances[validStart]) ? simState.cumDistances[validStart] : 0;
+  updateTimelineUI(currentDist);
 }
 
 function togglePlayPause() {
@@ -376,23 +454,85 @@ if (simRangeSlider) {
   });
 }
 
+// Route direction segmented control
+function setRouteDirection(reversed) {
+  if (isReversed === reversed) return;
+  isReversed = reversed;
+  if (btnDirForward) btnDirForward.classList.toggle('active', !isReversed);
+  if (btnDirReverse) btnDirReverse.classList.toggle('active', isReversed);
+  if (btnSimDirection) {
+    btnSimDirection.innerText = isReversed ? 'Reverse (Inverted)' : 'Forward (Original)';
+  }
+  if (simRoute && simRoute.length >= 2) {
+    simRoute.reverse();
+    calcRouteDistances();
+    precomputeChevrons();
+    precomputeCornerAnchors();
+    resetSimulationState(0);
+    drawWatchScreen();
+  }
+}
+
+if (btnDirForward) {
+  btnDirForward.addEventListener('click', () => setRouteDirection(false));
+}
+if (btnDirReverse) {
+  btnDirReverse.addEventListener('click', () => setRouteDirection(true));
+}
+
 if (btnSimDirection) {
   btnSimDirection.addEventListener('click', () => {
-    isReversed = !isReversed;
-    btnSimDirection.innerText = isReversed ? 'Reverse (Inverted)' : 'Forward (Original)';
-    if (simRoute && simRoute.length >= 2) {
-      simRoute.reverse();
-      precomputeChevrons();
-      precomputeCornerAnchors();
-      resetSimulationState(0);
-      drawWatchScreen();
-    }
+    setRouteDirection(!isReversed);
   });
 }
 
+// Hardware switch toggles
+if (toggleDirection) {
+  toggleDirection.checked = simState.showDirection;
+  toggleDirection.addEventListener('change', (e) => {
+    simState.showDirection = e.target.checked;
+    drawWatchScreen();
+  });
+}
+
+if (toggleDim) {
+  toggleDim.checked = simState.dimCompletedPath;
+  toggleDim.addEventListener('change', (e) => {
+    simState.dimCompletedPath = e.target.checked;
+    drawWatchScreen();
+  });
+}
+
+if (toggleTurnCue) {
+  toggleTurnCue.checked = simState.showTurnCue;
+  toggleTurnCue.addEventListener('change', (e) => {
+    simState.showTurnCue = e.target.checked;
+    drawWatchScreen();
+  });
+}
+
+if (toggleAnchors) {
+  toggleAnchors.checked = simState.showCornerAnchors;
+  toggleAnchors.addEventListener('change', (e) => {
+    simState.showCornerAnchors = e.target.checked;
+    drawWatchScreen();
+  });
+}
+
+// Timeline Scrubber Slider
+if (timelineSlider) {
+  timelineSlider.addEventListener('input', (e) => {
+    const pct = parseInt(e.target.value, 10) / 1000;
+    const targetMeters = pct * (simState.totalRouteDist || 0);
+    seekToDistance(targetMeters);
+  });
+}
+
+// Legacy button compatibility
 if (btnToggleDirection) {
   btnToggleDirection.addEventListener('click', () => {
     simState.showDirection = !simState.showDirection;
+    if (toggleDirection) toggleDirection.checked = simState.showDirection;
     btnToggleDirection.classList.toggle('btn-active', simState.showDirection);
     btnToggleDirection.innerText = simState.showDirection ? 'ON (50m/250m)' : 'OFF';
     drawWatchScreen();
@@ -402,6 +542,7 @@ if (btnToggleDirection) {
 if (btnToggleDim) {
   btnToggleDim.addEventListener('click', () => {
     simState.dimCompletedPath = !simState.dimCompletedPath;
+    if (toggleDim) toggleDim.checked = simState.dimCompletedPath;
     btnToggleDim.classList.toggle('btn-active', simState.dimCompletedPath);
     btnToggleDim.innerText = simState.dimCompletedPath ? 'ON (Dimmed)' : 'OFF (Bright)';
     drawWatchScreen();
@@ -411,6 +552,7 @@ if (btnToggleDim) {
 if (btnToggleTurnCue) {
   btnToggleTurnCue.addEventListener('click', () => {
     simState.showTurnCue = !simState.showTurnCue;
+    if (toggleTurnCue) toggleTurnCue.checked = simState.showTurnCue;
     btnToggleTurnCue.classList.toggle('btn-active', simState.showTurnCue);
     btnToggleTurnCue.innerText = simState.showTurnCue ? 'ON' : 'OFF';
     drawWatchScreen();
@@ -420,30 +562,13 @@ if (btnToggleTurnCue) {
 if (btnToggleAnchors) {
   btnToggleAnchors.addEventListener('click', () => {
     simState.showCornerAnchors = !simState.showCornerAnchors;
+    if (toggleAnchors) toggleAnchors.checked = simState.showCornerAnchors;
     btnToggleAnchors.classList.toggle('btn-active', simState.showCornerAnchors);
     btnToggleAnchors.innerText = simState.showCornerAnchors ? 'ON' : 'OFF';
     drawWatchScreen();
   });
 }
 
-if (btnTestStart) {
-  btnTestStart.addEventListener('click', () => {
-    if (!simRoute || simRoute.length < 2) return;
-    resetSimulationState(0);
-    if (!simState.isPlaying) togglePlayPause();
-    drawWatchScreen();
-  });
-}
-
-if (btnTestMidStart) {
-  btnTestMidStart.addEventListener('click', () => {
-    if (!simRoute || simRoute.length < 5) return;
-    const targetSeg = Math.min(4, simRoute.length - 2);
-    resetSimulationState(targetSeg);
-    if (!simState.isPlaying) togglePlayPause();
-    drawWatchScreen();
-  });
-}
 
 if (btnTestFarAway) {
   btnTestFarAway.addEventListener('click', () => {
@@ -496,6 +621,7 @@ function advanceRunner(distanceM) {
       simState.hasFinished = true;
       if (btnSimPlay) btnSimPlay.innerText = 'Replay Simulation';
       if (mBtnPlayToggle) mBtnPlayToggle.innerText = 'Replay';
+      updateTimelineUI(simState.totalRouteDist || 0);
       triggerHaptic('finish', 'GPS Art Completed!');
       return;
     }
@@ -526,6 +652,7 @@ function advanceRunner(distanceM) {
         simState.hasFinished = true;
         if (btnSimPlay) btnSimPlay.innerText = 'Replay Simulation';
         if (mBtnPlayToggle) mBtnPlayToggle.innerText = 'Replay';
+        updateTimelineUI(simState.totalRouteDist || 0);
         triggerHaptic('finish', 'GPS Art Completed!');
         return;
       }
@@ -562,6 +689,9 @@ function advanceRunner(distanceM) {
     simState.currLon = baseLon;
   }
 
+  const currDist = (simState.cumDistances && simState.cumDistances[simState.segIdx] ? simState.cumDistances[simState.segIdx] : 0) + (simState.segProgress * segLen);
+  updateTimelineUI(currDist);
+
   recordTrailAndSparks();
 }
 
@@ -573,9 +703,9 @@ function recordTrailAndSparks() {
     111319.5 *
     Math.cos((baseLat * Math.PI) / 180);
 
-  if (dLatM * dLatM + dLonM * dLonM > 6.25 || simTrail.length === 0) {
+  if (dLatM * dLatM + dLonM * dLonM > 25.0 || simTrail.length === 0) {
     simTrail.push({ lat: simState.currLat, lon: simState.currLon });
-    if (simTrail.length > 80) simTrail.shift();
+    if (simTrail.length > 24) simTrail.shift();
     simState.lastTrailLat = simState.currLat;
     simState.lastTrailLon = simState.currLon;
   }
@@ -947,6 +1077,12 @@ function drawWatchScreen() {
   }
 
   if (simState.showDirection) {
+    const curSegIdx = simState.segIdx;
+    const pA = simRoute[curSegIdx];
+    const pB = simRoute[curSegIdx + 1];
+    const curSegLen = pA && pB ? calcDistanceMeters(pA, pB) : 0;
+    const runnerDist = (simState.cumDistances && simState.cumDistances[curSegIdx] ? simState.cumDistances[curSegIdx] : 0) + (simState.segProgress * curSegLen);
+
     for (let k = 0; k < simChevrons.length; k++) {
       const ch = simChevrons[k];
       const ax = (ch.lon - currLon) * 111319.5 * cosLat;
@@ -964,13 +1100,19 @@ function drawWatchScreen() {
       const snx = -suy;
       const sny = sux;
 
+      const isChevronPassed = ch.dist <= runnerDist;
+      const isDimmed = simState.dimCompletedPath && isChevronPassed;
+      const chColor = isDimmed ? 'rgba(0, 229, 255, 0.28)' : '#00e5ff';
+      const chPenMajor = isDimmed ? 2 : 4;
+      const chPenMinor = isDimmed ? 1 : 2;
+
       dc.save();
-      dc.strokeStyle = '#00e5ff';
+      dc.strokeStyle = chColor;
       dc.lineCap = 'round';
       dc.lineJoin = 'round';
 
       if (ch.isMajor) {
-        dc.lineWidth = 4;
+        dc.lineWidth = chPenMajor;
         const tipX = sx + sux * 9.0;
         const tipY = sy + suy * 9.0;
         const leftX = sx - sux * 6.0 + snx * 10.0;
@@ -984,7 +1126,7 @@ function drawWatchScreen() {
         dc.lineTo(rightX, rightY);
         dc.stroke();
       } else {
-        dc.lineWidth = 2;
+        dc.lineWidth = chPenMinor;
         const tipX = sx + sux * 5.0;
         const tipY = sy + suy * 5.0;
         const leftX = sx - sux * 3.0 + snx * 5.0;
@@ -1045,33 +1187,29 @@ function drawWatchScreen() {
 
   const M = simTrail.length;
   if (M > 1) {
-    for (let t = 0; t < M - 1; t++) {
-      const p1 = simTrail[t];
-      const p2 = simTrail[t + 1];
-      const ratio = t / (M - 1);
-
-      const tax1 = (p1.lon - currLon) * 111319.5 * cosLat;
-      const tay1 = (p1.lat - currLat) * 111132.9;
-      const tax2 = (p2.lon - currLon) * 111319.5 * cosLat;
-      const tay2 = (p2.lat - currLat) * 111132.9;
-
-      const tsx1 = cx + (tax1 * cosH - tay1 * sinH) * ZOOM_SCALE;
-      const tsy1 = cy - (tay1 * cosH + tax1 * sinH) * ZOOM_SCALE;
-      const tsx2 = cx + (tax2 * cosH - tay2 * sinH) * ZOOM_SCALE;
-      const tsy2 = cy - (tay2 * cosH + tax2 * sinH) * ZOOM_SCALE;
-
-      const segWidth = 2.0 + 3.5 * Math.pow(ratio, 1.2);
-      const segAlpha = 0.35 + 0.6 * ratio;
-
-      dc.beginPath();
-      dc.strokeStyle = `rgba(163, 230, 53, ${segAlpha.toFixed(2)})`;
-      dc.lineWidth = segWidth;
-      dc.lineCap = 'round';
-      dc.lineJoin = 'round';
-      dc.moveTo(tsx1, tsy1);
-      dc.lineTo(tsx2, tsy2);
-      dc.stroke();
+    dc.save();
+    dc.beginPath();
+    let started = false;
+    for (let t = 0; t < M; t++) {
+      const p = simTrail[t];
+      const tax = (p.lon - currLon) * 111319.5 * cosLat;
+      const tay = (p.lat - currLat) * 111132.9;
+      const tsx = cx + (tax * cosH - tay * sinH) * ZOOM_SCALE;
+      const tsy = cy - (tay * cosH + tax * sinH) * ZOOM_SCALE;
+      if (!started) {
+        dc.moveTo(tsx, tsy);
+        started = true;
+      } else {
+        dc.lineTo(tsx, tsy);
+      }
     }
+    dc.lineTo(cx, cy + 4);
+    dc.strokeStyle = '#a3e635';
+    dc.lineWidth = 3;
+    dc.lineCap = 'round';
+    dc.lineJoin = 'round';
+    dc.stroke();
+    dc.restore();
 
     const S = simSparks.length;
     if (S > 0) {
@@ -1135,26 +1273,26 @@ function drawWatchScreen() {
     const turn = getNextTurnCue();
     if (turn && turn.dist <= 60) {
       dc.save();
-      const badgeW = 86;
-      const badgeH = 28;
-      const badgeX = cx + 30;
-      const badgeY = cy - 144;
+      const badgeW = 144;
+      const badgeH = 38;
+      const badgeX = cx - badgeW / 2;
+      const badgeY = 26;
 
       const isImminent = turn.dist <= 20;
-      dc.fillStyle = isImminent ? 'rgba(217, 119, 6, 0.9)' : 'rgba(15, 23, 42, 0.85)';
-      roundRect(dc, badgeX, badgeY, badgeW, badgeH, 6);
+      dc.fillStyle = isImminent ? 'rgba(217, 119, 6, 0.95)' : 'rgba(15, 23, 42, 0.92)';
+      roundRect(dc, badgeX, badgeY, badgeW, badgeH, 8);
       dc.fill();
 
-      dc.strokeStyle = isImminent ? '#fbbf24' : '#38bdf8';
-      dc.lineWidth = 1.5;
-      roundRect(dc, badgeX, badgeY, badgeW, badgeH, 6);
+      dc.strokeStyle = isImminent ? '#fbbf24' : '#00e5ff';
+      dc.lineWidth = 2.5;
+      roundRect(dc, badgeX, badgeY, badgeW, badgeH, 8);
       dc.stroke();
 
       dc.fillStyle = '#ffffff';
-      dc.font = 'bold 13px -apple-system, sans-serif';
+      dc.font = 'bold 16px -apple-system, sans-serif';
       dc.textAlign = 'center';
       dc.textBaseline = 'middle';
-      dc.fillText(turn.label, badgeX + badgeW / 2, badgeY + badgeH / 2);
+      dc.fillText(turn.label, cx, badgeY + badgeH / 2);
       dc.restore();
     }
   }

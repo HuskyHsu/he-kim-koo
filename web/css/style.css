@@ -849,6 +849,276 @@ input[type="range"] {
   background-color: var(--accent-green);
 }
 
+/* Hardware Toggle Switches (iOS / Garmin Style) */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border-medium);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 20px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #ffffff;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--accent-brand);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(16px);
+}
+
+/* Segmented Control Pill */
+.segmented-control {
+  display: inline-flex;
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: auto;
+}
+
+.seg-btn.active {
+  background: #ffffff;
+  color: var(--text-main);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Export Card & Prominent Copy Button */
+.export-card {
+  background: var(--bg-page);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.export-meta-label {
+  color: var(--text-muted);
+}
+
+.export-meta-val {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.btn-copy-prominent {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+
+.btn-copy-prominent.copied {
+  background-color: var(--accent-green) !important;
+}
+
+.raw-polyline-details {
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.raw-polyline-details summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.raw-polyline-details summary:hover {
+  color: var(--text-main);
+}
+
+.raw-polyline-details textarea {
+  margin-top: 8px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  width: 100%;
+  border-radius: 4px;
+}
+
+/* Timeline Scrubber & Transport Bar */
+.timeline-card {
+  background: var(--bg-page);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.timeline-dist {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent-brand);
+}
+
+.timeline-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timeline-slider {
+  flex: 1;
+  accent-color: var(--accent-brand);
+  cursor: pointer;
+  height: 6px;
+}
+
+/* Memory Budget Progress Meter */
+.memory-meter-container {
+  grid-column: span 2;
+  background: rgba(15, 23, 42, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.memory-meter-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.memory-bar-track {
+  width: 100%;
+  height: 6px;
+  background: var(--border-medium);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.memory-bar-fill {
+  height: 100%;
+  background: var(--accent-green);
+  width: 0%;
+  transition: width 0.3s ease, background 0.3s ease;
+  border-radius: 3px;
+}
+
+/* Global Drag & Drop Overlay */
+.global-dropzone-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.global-dropzone-overlay.active {
+  display: flex;
+}
+
+.global-dropzone-modal {
+  background: #ffffff;
+  border: 2px dashed var(--accent-brand);
+  border-radius: 16px;
+  padding: 40px 60px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  transform: scale(0.96);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.global-dropzone-overlay.active .global-dropzone-modal {
+  transform: scale(1);
+}
+
+.global-dropzone-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 12px;
+}
+
+.global-dropzone-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 /* Responsive Media Queries */
 @media (max-width: 880px) {
   .brand-subtitle {

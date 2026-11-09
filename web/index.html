@@ -7,6 +7,15 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body class="view-mode-settings">
+    <!-- Global Full-Window Drag & Drop Overlay -->
+    <div class="global-dropzone-overlay" id="globalDropOverlay">
+      <div class="global-dropzone-modal">
+        <div style="font-size: 42px">🗺️</div>
+        <div class="global-dropzone-title">Drop GPX File Anywhere</div>
+        <div class="global-dropzone-sub">Instantly parse, simplify, and preview on watch</div>
+      </div>
+    </div>
+
     <!-- Top Header -->
     <header class="app-header">
       <div class="brand-group">
@@ -71,7 +80,7 @@
               <div class="stat-cell-value" id="valOrigPoints">-</div>
             </div>
             <div class="stat-cell">
-              <div class="stat-cell-label">Simplified Points</div>
+              <div class="stat-cell-label">Simplified Anchors</div>
               <div class="stat-cell-value" id="valSimpPoints" style="color: var(--accent-cyan)">-</div>
             </div>
             <div class="stat-cell">
@@ -79,8 +88,19 @@
               <div class="stat-cell-value" id="valDistance">-</div>
             </div>
             <div class="stat-cell">
-              <div class="stat-cell-label">Polyline Chars</div>
+              <div class="stat-cell-label">Payload Size</div>
               <div class="stat-cell-value" id="valStrLen" style="color: var(--accent-brand)">-</div>
+            </div>
+
+            <!-- Memory Budget Gauge -->
+            <div class="memory-meter-container">
+              <div class="memory-meter-header">
+                <span>Watch Memory Budget</span>
+                <span id="memoryBudgetLabel">- / 130 pts</span>
+              </div>
+              <div class="memory-bar-track">
+                <div class="memory-bar-fill" id="memoryBarFill" style="width: 0%"></div>
+              </div>
             </div>
           </div>
         </section>
@@ -88,19 +108,33 @@
         <!-- 4. Garmin Encoded Polyline Output -->
         <section class="section-block">
           <div class="section-heading">
-            <span>Route String (Polyline)</span>
+            <span>Garmin Route Code</span>
+            <span class="device-badge" id="memoryBadge" style="color: var(--accent-green); background: var(--accent-green-light); border-color: rgba(22, 163, 74, 0.25);">Memory Safe</span>
           </div>
 
-          <div class="polyline-box">
-            <textarea
-              class="polyline-output"
-              id="outputPolyline"
-              rows="8"
-              spellcheck="false"
-              readonly
-              placeholder="Polyline string will be generated automatically after loading..."
-            ></textarea>
-            <button class="btn-primary" id="btnCopy">Copy Route String</button>
+          <div class="export-card">
+            <div class="export-meta-row">
+              <span class="export-meta-label">Payload String</span>
+              <span class="export-meta-val" id="exportCharCount">0 chars</span>
+            </div>
+
+            <button class="btn-primary btn-copy-prominent" id="btnCopy">
+              <span>📋</span>
+              <span id="btnCopyLabel">Copy Route for Garmin Connect</span>
+            </button>
+
+            <!-- Collapsible Raw Polyline Drawer -->
+            <details class="raw-polyline-details">
+              <summary>View raw Polyline string</summary>
+              <textarea
+                class="polyline-output"
+                id="outputPolyline"
+                rows="3"
+                spellcheck="false"
+                readonly
+                placeholder="Route code will appear here..."
+              ></textarea>
+            </details>
           </div>
         </section>
 
@@ -112,7 +146,7 @@
 
           <div class="guide-panel">
             <ol class="guide-steps">
-              <li>Click <strong>"Copy Route String"</strong> above.</li>
+              <li>Click <strong>"Copy Route for Garmin Connect"</strong> above.</li>
               <li>Open <strong>Garmin Connect</strong> on phone ➔ select <strong>Venu 2 Plus</strong>.</li>
               <li>Go to <strong>Activities & Apps</strong> ➔ <strong>Data Fields</strong> ➔ <strong>He-Kim-Koo</strong> ➔ <strong>Settings</strong>.</li>
               <li>Paste into <strong>Route String</strong> and save. Launch Run on your watch to begin!</li>
@@ -152,6 +186,17 @@
 
             <!-- Simulator Controls -->
             <div class="sim-deck">
+              <!-- Timeline Scrubber Bar -->
+              <div class="timeline-card">
+                <div class="timeline-header">
+                  <span>Simulation Scrubber</span>
+                  <span class="timeline-dist" id="timelineDistLabel">0.0 / 0.0 km</span>
+                </div>
+                <div class="timeline-slider-row">
+                  <input type="range" class="timeline-slider" id="timelineSlider" min="0" max="1000" value="0" step="1" />
+                </div>
+              </div>
+
               <!-- Group 1: 1:1 Garmin Watch Settings -->
               <div class="sim-control-group">
                 <div class="sim-group-header">
@@ -162,36 +207,51 @@
                 <!-- 1. routeDirection -->
                 <div class="sim-row">
                   <label>Route Direction</label>
-                  <button id="btnSimDirection" style="padding: 4px 10px; font-size: 11px; min-height: 30px">Forward (Original)</button>
+                  <div class="segmented-control" id="segRouteDirection">
+                    <button class="seg-btn active" id="btnDirForward" type="button">Forward</button>
+                    <button class="seg-btn" id="btnDirReverse" type="button">Reverse</button>
+                  </div>
                 </div>
 
                 <!-- 2. showDirection -->
                 <div class="sim-row">
-                  <label>Show Direction Chevrons</label>
-                  <button id="btnToggleDirection" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON (50m/250m)</button>
+                  <label for="toggleDirection">Show Direction Chevrons</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggleDirection" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
 
                 <!-- 3. dimCompletedPath -->
                 <div class="sim-row">
-                  <label>Dim Completed Path</label>
-                  <button id="btnToggleDim" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON (Dimmed)</button>
+                  <label for="toggleDim">Dim Completed Path</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggleDim" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
 
                 <!-- 4. showTurnCue -->
                 <div class="sim-row">
-                  <label>Upcoming Turn Cue (&lt;60m)</label>
-                  <button id="btnToggleTurnCue" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON</button>
+                  <label for="toggleTurnCue">Upcoming Turn Cue (&lt;60m)</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggleTurnCue" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
 
                 <!-- 5. showCornerAnchors -->
                 <div class="sim-row">
-                  <label>Corner Anchor Dots</label>
-                  <button id="btnToggleAnchors" class="btn-active" style="padding: 4px 10px; font-size: 11px; min-height: 30px">ON</button>
+                  <label for="toggleAnchors">Corner Anchor Dots</label>
+                  <label class="toggle-switch">
+                    <input type="checkbox" id="toggleAnchors" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
 
                 <!-- 6. mapRange -->
                 <div class="sim-row">
-                  <label>Map View Range</label>
+                  <label for="simRangeSlider">Map View Range</label>
                   <input type="range" id="simRangeSlider" min="50" max="1000" value="175" step="5" />
                   <span class="sim-row-value" id="simRangeVal">175m</span>
                 </div>
@@ -217,25 +277,16 @@
 
                 <!-- Compass Heading Trim -->
                 <div class="sim-row">
-                  <label>Heading Trim</label>
+                  <label for="simHeadingSlider">Heading Trim</label>
                   <input type="range" id="simHeadingSlider" min="0" max="360" value="0" />
                   <span class="sim-row-value" id="simHeadingVal">0°</span>
                 </div>
 
                 <!-- Scenario Triggers -->
                 <div class="scenario-buttons">
-                  <button id="btnTestStart">Start Point (Seg 0)</button>
-                  <button id="btnTestMidStart">Mid Route (Seg 4)</button>
                   <button id="btnSimDeviate" class="btn-danger">Off-Course Test (+45m)</button>
                   <button id="btnTestFarAway">Far Away Preview</button>
                 </div>
-              </div>
-
-              <!-- Live Telemetry Readout -->
-              <div class="telemetry-readout">
-                <div>Heading <span class="highlight" id="readoutHeading">0°</span></div>
-                <div>Cross Track (CTD) <span class="highlight" id="readoutCtd">0.0 m</span></div>
-                <div>Status <span class="highlight" id="readoutStatus" style="color: var(--accent-green)">On Course</span></div>
               </div>
             </div>
           </div>

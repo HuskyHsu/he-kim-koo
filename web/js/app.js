@@ -5,6 +5,13 @@
 // DOM Elements
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
+const globalDropOverlay = document.getElementById('globalDropOverlay');
+const memoryBudgetLabel = document.getElementById('memoryBudgetLabel');
+const memoryBarFill = document.getElementById('memoryBarFill');
+const memoryBadge = document.getElementById('memoryBadge');
+const exportCharCount = document.getElementById('exportCharCount');
+const btnCopyLabel = document.getElementById('btnCopyLabel');
+
 const valOrigPoints = document.getElementById('valOrigPoints');
 const valSimpPoints = document.getElementById('valSimpPoints');
 const valDistance = document.getElementById('valDistance');
@@ -132,7 +139,37 @@ window.addEventListener('resize', () => {
   }
 });
 
-// File drag & drop
+// Global Full-Window Drag & Drop
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragDepth++;
+  if (globalDropOverlay) globalDropOverlay.classList.add('active');
+});
+
+window.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dragDepth--;
+  if (dragDepth <= 0) {
+    dragDepth = 0;
+    if (globalDropOverlay) globalDropOverlay.classList.remove('active');
+  }
+});
+
+window.addEventListener('dragover', (e) => {
+  e.preventDefault();
+});
+
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  if (globalDropOverlay) globalDropOverlay.classList.remove('active');
+  if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+    handleFile(e.dataTransfer.files[0]);
+  }
+});
+
+// Dropzone file drag & drop
 if (dropzone && fileInput) {
   dropzone.addEventListener('click', () => fileInput.click());
   dropzone.addEventListener('dragover', (e) => {
@@ -184,8 +221,43 @@ function processGpxXml(xmlText, routeLabel = 'Custom Route') {
   if (valOrigPoints) valOrigPoints.innerText = points.length.toLocaleString();
   if (valSimpPoints) valSimpPoints.innerText = simplified.length.toLocaleString();
   if (valDistance) valDistance.innerText = (totalMeters / 1000).toFixed(2) + ' km';
-  if (valStrLen) valStrLen.innerText = encoded.length + ' chars';
+  if (valStrLen) valStrLen.innerText = encoded.length.toLocaleString() + ' chars';
   if (outputPolyline) outputPolyline.value = encoded;
+
+  // Memory Budget Meter (130 max Garmin anchor threshold)
+  const simplifiedCount = simplified.length;
+  const maxBudget = 130;
+  const pct = Math.min(100, Math.round((simplifiedCount / maxBudget) * 100));
+
+  if (memoryBudgetLabel) {
+    memoryBudgetLabel.innerText = `${simplifiedCount} / ${maxBudget} pts (${pct}%)`;
+  }
+  if (memoryBarFill) {
+    memoryBarFill.style.width = `${pct}%`;
+    if (simplifiedCount > maxBudget) {
+      memoryBarFill.style.background = 'var(--accent-red)';
+    } else if (simplifiedCount > 115) {
+      memoryBarFill.style.background = '#eab308';
+    } else {
+      memoryBarFill.style.background = 'var(--accent-brand)';
+    }
+  }
+  if (memoryBadge) {
+    if (simplifiedCount <= maxBudget) {
+      memoryBadge.innerText = 'Memory Safe';
+      memoryBadge.style.color = 'var(--accent-green)';
+      memoryBadge.style.background = 'var(--accent-green-light)';
+      memoryBadge.style.borderColor = 'rgba(22, 163, 74, 0.25)';
+    } else {
+      memoryBadge.innerText = 'Exceeds Budget';
+      memoryBadge.style.color = 'var(--accent-red)';
+      memoryBadge.style.background = 'var(--accent-red-light)';
+      memoryBadge.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+    }
+  }
+  if (exportCharCount) {
+    exportCharCount.innerText = `${encoded.length.toLocaleString()} chars`;
+  }
 
   if (canvasPointCount) {
     canvasPointCount.innerText = `${points.length} Raw Pts ➔ ${simplified.length} Simplified`;
@@ -229,12 +301,20 @@ function updateRouteCatalogBadge(name, pointCount, distLabel) {
   `;
 }
 
-// Copy polyline button
+// Copy polyline button with tactile state feedback
 if (btnCopy) {
   btnCopy.addEventListener('click', () => {
     if (!outputPolyline || !outputPolyline.value) return;
     outputPolyline.select();
     navigator.clipboard.writeText(outputPolyline.value).then(() => {
+      if (btnCopyLabel) {
+        btnCopyLabel.innerText = '✓ Copied to Clipboard!';
+        btnCopy.classList.add('copied');
+        setTimeout(() => {
+          btnCopyLabel.innerText = 'Copy Route for Garmin Connect';
+          btnCopy.classList.remove('copied');
+        }, 2500);
+      }
       if (toastMessage) toastMessage.innerText = 'Route string copied to clipboard!';
       if (toast) {
         toast.classList.add('show');
