@@ -15,65 +15,56 @@ class PolylineDecoder {
             return [] as Array<Number>;
         }
 
-        var chars = str.toCharArray();
-        var len = chars.size();
+        // Use UTF-8 ByteArray (1 byte/char) instead of boxed Array<Char> to minimize heap spike
+        var bytes = str.toUtf8Array();
+        var len = bytes.size();
         var index = 0;
 
         var lat = 0;
         var lon = 0;
+        var maxCoords = MAX_POINTS * 2;
 
         // Pre-allocate fixed-size array to avoid GC fragmentation from dynamic resizing
-        var temp = new [MAX_POINTS * 2];
+        var temp = new [maxCoords] as Array<Number>;
         var count = 0;
 
-        while (index < len && count < MAX_POINTS * 2) {
-            // 1. Decode Latitude Delta
+        while (index < len && count < maxCoords) {
             var b = 0;
             var shift = 0;
             var result = 0;
+            var incomplete = false;
 
             do {
                 if (index >= len) {
+                    incomplete = true;
                     break;
                 }
-                b = chars[index].toNumber() - 63;
+                b = bytes[index] - 63;
                 index++;
                 result = result | ((b & 0x1F) << shift);
                 shift += 5;
             } while (b >= 0x20);
 
-            var dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-            lat += dlat;
+            if (incomplete) {
+                break;
+            }
 
-            // 2. Decode Longitude Delta
-            shift = 0;
-            result = 0;
-
-            do {
-                if (index >= len) {
-                    break;
-                }
-                b = chars[index].toNumber() - 63;
-                index++;
-                result = result | ((b & 0x1F) << shift);
-                shift += 5;
-            } while (b >= 0x20);
-
-            var dlon = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-            lon += dlon;
-
-            temp[count] = lat;
-            temp[count + 1] = lon;
-            count += 2;
+            var delta = ((result & 1) != 0) ? ~(result >> 1) : (result >> 1);
+            if ((count & 1) == 0) {
+                lat += delta;
+                temp[count] = lat;
+            } else {
+                lon += delta;
+                temp[count] = lon;
+            }
+            count++;
         }
 
-        // Return exact-sized array and release temporary buffer
-        var points = new [count] as Array<Number>;
-        for (var i = 0; i < count; i++) {
-            var val = temp[i];
-            points[i] = (val != null) ? (val as Number) : 0;
+        // Ensure complete (lat, lon) pairs only
+        count = count & ~1;
+        if (count == maxCoords) {
+            return temp;
         }
-
-        return points;
+        return temp.slice(0, count) as Array<Number>;
     }
 }

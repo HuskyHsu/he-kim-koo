@@ -15,23 +15,23 @@ class RouteApp extends Application.AppBase {
     }
 
     function onStop(state as Dictionary?) as Void {
+        mDataField = null;
     }
 
     //! Returns the initial Data Field view
     function getInitialView() as [Views] or [Views, InputDelegates] {
-        mDataField = new RouteDataField();
-        return [ mDataField ];
+        var field = new RouteDataField();
+        mDataField = field;
+        return [ field ];
     }
 
     //! Triggered when user updates and saves settings in the Garmin Connect mobile app
     function onSettingsChanged() as Void {
-        try {
-            if (mDataField != null) {
-                mDataField.reloadRoute();
-            }
-            WatchUi.requestUpdate();
-        } catch (e) {
+        var field = mDataField;
+        if (field != null) {
+            field.reloadRoute();
         }
+        WatchUi.requestUpdate();
     }
 }
 
