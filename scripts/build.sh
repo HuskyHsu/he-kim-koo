@@ -139,8 +139,8 @@ build_iq() {
 
 clean() {
     echo -e "\n${YELLOW}Cleaning build artifacts and temporary files...${NC}"
-    rm -rf "$OUTPUT_DIR" gen mir internal-mir
-    rm -f *.prg *.prg.debug.xml *.iq *-settings.json .DS_Store
+    rm -rf "$OUTPUT_DIR" gen mir internal-mir "$PROJECT_DIR"/gen "$PROJECT_DIR"/mir "$PROJECT_DIR"/internal-mir
+    rm -f "$PROJECT_DIR"/*.prg "$PROJECT_DIR"/*.prg.debug.xml "$PROJECT_DIR"/*.iq "$PROJECT_DIR"/*-settings.json "$PROJECT_DIR"/.DS_Store
     echo -e "${GREEN}✓ Clean complete.${NC}"
 }
 

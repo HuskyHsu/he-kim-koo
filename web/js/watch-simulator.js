@@ -168,14 +168,15 @@ function seekToDistance(targetMeters) {
   const pA = simRoute[seg];
   const pB = simRoute[seg + 1];
   const segLen = calcDistanceMeters(pA, pB);
-  const progress = segLen > 0.001 ? Math.max(0, Math.min(1.0, (targetMeters - segStartDist) / segLen)) : 0;
+  const progress =
+    segLen > 0.001 ? Math.max(0, Math.min(1.0, (targetMeters - segStartDist) / segLen)) : 0;
 
   simState.segIdx = seg;
   simState.segProgress = progress;
   simState.hasFinished = false;
 
   for (let i = 0; i < visitedSegments.length; i++) {
-    visitedSegments[i] = (i < seg);
+    visitedSegments[i] = i < seg;
   }
 
   const baseLat = pA.lat + (pB.lat - pA.lat) * progress;
@@ -369,7 +370,10 @@ function resetSimulationState(startSegIdx = 0) {
     btnSimDeviate.innerText = 'Off-Course Test (+45m)';
   }
 
-  const currentDist = (simState.cumDistances && simState.cumDistances[validStart]) ? simState.cumDistances[validStart] : 0;
+  const currentDist =
+    simState.cumDistances && simState.cumDistances[validStart]
+      ? simState.cumDistances[validStart]
+      : 0;
   updateTimelineUI(currentDist);
 }
 
@@ -569,7 +573,6 @@ if (btnToggleAnchors) {
   });
 }
 
-
 if (btnTestFarAway) {
   btnTestFarAway.addEventListener('click', () => {
     if (!simRoute || simRoute.length < 2) return;
@@ -689,7 +692,11 @@ function advanceRunner(distanceM) {
     simState.currLon = baseLon;
   }
 
-  const currDist = (simState.cumDistances && simState.cumDistances[simState.segIdx] ? simState.cumDistances[simState.segIdx] : 0) + (simState.segProgress * segLen);
+  const currDist =
+    (simState.cumDistances && simState.cumDistances[simState.segIdx]
+      ? simState.cumDistances[simState.segIdx]
+      : 0) +
+    simState.segProgress * segLen;
   updateTimelineUI(currDist);
 
   recordTrailAndSparks();
@@ -699,9 +706,7 @@ function recordTrailAndSparks() {
   const baseLat = simState.currLat;
   const dLatM = (simState.currLat - simState.lastTrailLat) * 111132.9;
   const dLonM =
-    (simState.currLon - simState.lastTrailLon) *
-    111319.5 *
-    Math.cos((baseLat * Math.PI) / 180);
+    (simState.currLon - simState.lastTrailLon) * 111319.5 * Math.cos((baseLat * Math.PI) / 180);
 
   if (dLatM * dLatM + dLonM * dLonM > 25.0 || simTrail.length === 0) {
     simTrail.push({ lat: simState.currLat, lon: simState.currLon });
@@ -712,9 +717,7 @@ function recordTrailAndSparks() {
 
   const dSparkLatM = (simState.currLat - simState.lastSparkLat) * 111132.9;
   const dSparkLonM =
-    (simState.currLon - simState.lastSparkLon) *
-    111319.5 *
-    Math.cos((baseLat * Math.PI) / 180);
+    (simState.currLon - simState.lastSparkLon) * 111319.5 * Math.cos((baseLat * Math.PI) / 180);
 
   if (dSparkLatM * dSparkLatM + dSparkLonM * dSparkLonM >= 400.0) {
     simSparks.push({ lat: simState.currLat, lon: simState.currLon });
@@ -736,7 +739,7 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
   dc.fillStyle = '#00e5ff';
   dc.font = 'bold 15px -apple-system, sans-serif';
   dc.textAlign = 'center';
-  dc.fillText(`GPS ART (${totalDistStr})`, cx, 28);
+  dc.fillText(`GPS ART (${totalDistStr})`, cx, 36);
 
   const wStr =
     simState.boxWidthM >= 1000
@@ -749,11 +752,11 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
 
   dc.fillStyle = '#94a3b8';
   dc.font = '12px -apple-system, sans-serif';
-  dc.fillText(`${wStr}   ${hStr}`, cx, 48);
+  dc.fillText(`${wStr}   ${hStr}`, cx, 62);
 
-  const thumbCy = cy - 2;
-  const maxThumbW = w * 0.65;
-  const maxThumbH = h * 0.46;
+  const thumbCy = Math.round(h * 0.42);
+  const maxThumbW = w * 0.58;
+  const maxThumbH = h * 0.35;
 
   const centerLat = simState.centerLat || simRoute[0].lat;
   const centerLon = simState.centerLon || simRoute[0].lon;
@@ -833,7 +836,13 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
 
     const barW = Math.max(24, Math.min(120, Math.round(bestStep * pixelsPerMeter)));
     const barX = cx - barW / 2;
-    const barY = Math.round(h * 0.77);
+    const barY = Math.round(h * 0.72);
+
+    const scaleLabel = bestStep >= 1000 ? `${bestStep / 1000} km` : `${bestStep} m`;
+    dc.fillStyle = '#f8fafc';
+    dc.font = 'bold 11px -apple-system, sans-serif';
+    dc.textAlign = 'center';
+    dc.fillText(scaleLabel, cx, barY - 9);
 
     dc.strokeStyle = '#ffffff';
     dc.lineWidth = 2;
@@ -845,15 +854,9 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
     dc.moveTo(barX + barW, barY - 4);
     dc.lineTo(barX + barW, barY + 4);
     dc.stroke();
-
-    const scaleLabel = bestStep >= 1000 ? `${bestStep / 1000} km` : `${bestStep} m`;
-    dc.fillStyle = '#f8fafc';
-    dc.font = 'bold 11px -apple-system, sans-serif';
-    dc.textAlign = 'center';
-    dc.fillText(scaleLabel, cx, barY - 7);
   }
 
-  const pillW = 200;
+  const pillW = 216;
   const pillH = 30;
   const pillX = cx - pillW / 2;
   const pillY = Math.round(h * 0.85);
@@ -869,7 +872,7 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
 
   const relAngle = simState.bearingToStart - simState.renderHeadingRad;
   const arrowCx = pillX + 22;
-  const arrowCy = pillY + 15;
+  const arrowCy = pillY + 16;
   const adx = Math.sin(relAngle) * 7.5;
   const ady = -Math.cos(relAngle) * 7.5;
 
@@ -881,15 +884,9 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
   const sideAngle1 = relAngle + 2.5;
   const sideAngle2 = relAngle - 2.5;
   dc.moveTo(arrowCx + adx, arrowCy + ady);
-  dc.lineTo(
-    arrowCx + adx + Math.sin(sideAngle1) * 4.5,
-    arrowCy + ady - Math.cos(sideAngle1) * 4.5
-  );
+  dc.lineTo(arrowCx + adx + Math.sin(sideAngle1) * 4.5, arrowCy + ady - Math.cos(sideAngle1) * 4.5);
   dc.moveTo(arrowCx + adx, arrowCy + ady);
-  dc.lineTo(
-    arrowCx + adx + Math.sin(sideAngle2) * 4.5,
-    arrowCy + ady - Math.cos(sideAngle2) * 4.5
-  );
+  dc.lineTo(arrowCx + adx + Math.sin(sideAngle2) * 4.5, arrowCy + ady - Math.cos(sideAngle2) * 4.5);
   dc.stroke();
 
   const startDistStr =
@@ -921,10 +918,16 @@ function drawWatchScreen() {
   dc.fillRect(0, 0, w, h);
 
   if (simRoute.length < 2) {
-    dc.fillStyle = '#ffffff';
-    dc.font = '16px -apple-system, sans-serif';
+    dc.fillStyle = '#00e5ff';
+    dc.font = 'bold 22px -apple-system, sans-serif';
     dc.textAlign = 'center';
-    dc.fillText('NO ROUTE LOADED', cx, cy);
+    dc.textBaseline = 'middle';
+    dc.fillText('NO ROUTE', cx, cy - 20);
+
+    dc.fillStyle = '#94a3b8';
+    dc.font = '13px -apple-system, sans-serif';
+    dc.fillText('PASTE IN APP SETTINGS', cx, cy + 24);
+    dc.textBaseline = 'alphabetic';
     return;
   }
 
@@ -1002,9 +1005,15 @@ function drawWatchScreen() {
   const isFarAway = !simState.isGuideToStart && minDist > 250.0;
   if (simState.previewMode || isFarAway) {
     renderRoutePreviewWeb(dc, cx, cy, w, h);
-    if (readoutHeading) readoutHeading.innerText = `${Math.round(((heading * 180) / Math.PI + 360) % 360)}°`;
-    if (readoutCtd) readoutCtd.innerText = distToStart >= 1000 ? `${(distToStart / 1000).toFixed(1)} km` : `${Math.round(distToStart)} m`;
-    if (readoutStatus) readoutStatus.innerHTML = `<span style="color: var(--accent-cyan);">Map Preview</span>`;
+    if (readoutHeading)
+      readoutHeading.innerText = `${Math.round(((heading * 180) / Math.PI + 360) % 360)}°`;
+    if (readoutCtd)
+      readoutCtd.innerText =
+        distToStart >= 1000
+          ? `${(distToStart / 1000).toFixed(1)} km`
+          : `${Math.round(distToStart)} m`;
+    if (readoutStatus)
+      readoutStatus.innerHTML = `<span style="color: var(--accent-cyan);">Map Preview</span>`;
     return;
   }
 
@@ -1081,7 +1090,11 @@ function drawWatchScreen() {
     const pA = simRoute[curSegIdx];
     const pB = simRoute[curSegIdx + 1];
     const curSegLen = pA && pB ? calcDistanceMeters(pA, pB) : 0;
-    const runnerDist = (simState.cumDistances && simState.cumDistances[curSegIdx] ? simState.cumDistances[curSegIdx] : 0) + (simState.segProgress * curSegLen);
+    const runnerDist =
+      (simState.cumDistances && simState.cumDistances[curSegIdx]
+        ? simState.cumDistances[curSegIdx]
+        : 0) +
+      simState.segProgress * curSegLen;
 
     for (let k = 0; k < simChevrons.length; k++) {
       const ch = simChevrons[k];
@@ -1264,12 +1277,7 @@ function drawWatchScreen() {
   dc.fill();
   dc.restore();
 
-  if (
-    simState.showTurnCue &&
-    !isOffCourse &&
-    !simState.isGuideToStart &&
-    !simState.hasFinished
-  ) {
+  if (simState.showTurnCue && !isOffCourse && !simState.isGuideToStart && !simState.hasFinished) {
     const turn = getNextTurnCue();
     if (turn && turn.dist <= 60) {
       dc.save();
@@ -1382,4 +1390,3 @@ window.resetSimulationState = resetSimulationState;
 window.togglePlayPause = togglePlayPause;
 window.drawWatchScreen = drawWatchScreen;
 window.simState = simState;
-

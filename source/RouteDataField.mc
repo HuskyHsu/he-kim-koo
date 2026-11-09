@@ -59,7 +59,6 @@ class RouteDataField extends WatchUi.DataField {
     private var mPointCount as Number = 0;
 
     // Cumulative distances of points in meters [0.0, d1, d2, ...] (< 520 Bytes)
-    // Used for on-demand viewport chevron rendering without storing 500+ chevron objects in memory.
     private var mCumDist as Array<Float> = [] as Array<Float>;
     private var mShowDirection as Boolean = true;
 
@@ -140,6 +139,30 @@ class RouteDataField extends WatchUi.DataField {
 
     //! Reloads and decodes the Polyline string from App Settings
     public function reloadRoute() as Void {
+        loadRouteStringAndDirection();
+        loadDisplaySettings();
+        computeRouteBounds();
+        computeCumulativeDistances();
+        computeCornerAnchors();
+
+        // Reset trail history
+        mTrailCount = 0;
+        mTrailHead = 0;
+        mLastTrailLat = 0;
+        mLastTrailLon = 0;
+
+        mSparkCount = 0;
+        mSparkHead = 0;
+        mLastSparkLat = 0;
+        mLastSparkLon = 0;
+
+        mGpsLostCount = 0;
+        if (!mHasGps) {
+            mHasEverHadGps = false;
+        }
+    }
+
+    private function loadRouteStringAndDirection() as Void {
         try {
             var rawStr = Properties.getValue("routeString");
             if (rawStr != null && rawStr instanceof String) {
@@ -157,7 +180,17 @@ class RouteDataField extends WatchUi.DataField {
         // Check route direction (0: Forward, 1: Reverse)
         try {
             var dirVal = Properties.getValue("routeDirection");
-            if (dirVal != null && dirVal == 1 && mPointCount >= 2) {
+            var isReverse = false;
+            if (dirVal != null) {
+                if (dirVal instanceof Number) {
+                    isReverse = (dirVal == 1);
+                } else if (dirVal instanceof String) {
+                    isReverse = (dirVal.equals("1"));
+                } else if (dirVal instanceof Boolean) {
+                    isReverse = dirVal;
+                }
+            }
+            if (isReverse && mPointCount >= 2) {
                 var left = 0;
                 var right = (mPointCount - 1) * 2;
                 while (left < right) {
@@ -173,8 +206,9 @@ class RouteDataField extends WatchUi.DataField {
             }
         } catch (e) {
         }
+    }
 
-        // 2. Load configurable map view range (meters from center of screen)
+    private function loadDisplaySettings() as Void {
         try {
             var rangeVal = Properties.getValue("mapRange");
             if (rangeVal != null && rangeVal instanceof Number && rangeVal >= 30) {
@@ -189,7 +223,6 @@ class RouteDataField extends WatchUi.DataField {
         var cullDist = mMapRange * 1.30f;
         mCullDistSq = cullDist * cullDist;
 
-        // 3. Load feature settings
         try {
             var showDirVal = Properties.getValue("showDirection");
             mShowDirection = (showDirVal != null && showDirVal instanceof Boolean) ? showDirVal : true;
@@ -217,8 +250,9 @@ class RouteDataField extends WatchUi.DataField {
         } catch (e) {
             mShowCornerAnchors = true;
         }
+    }
 
-        // Calculate route bounding box for thumbnail overview
+    private function computeRouteBounds() as Void {
         if (mPointCount >= 2) {
             var minLa = mPoints[0];
             var maxLa = mPoints[0];
@@ -242,11 +276,10 @@ class RouteDataField extends WatchUi.DataField {
             mCenterLon = (minLo + maxLo) / 2;
 
             var centerLatRad = ((mCenterLat.toDouble() / 100000.0d) * Math.PI / 180.0d).toFloat();
-            mRouteCosLat = Math.cos(centerLatRad);
+            mRouteCosLat = Math.cos(centerLatRad).toFloat();
 
-            // Bounding box dimensions in meters
-            mBoxWidthMeters = (mMaxLon - mMinLon).toFloat() * 1.113195f * mRouteCosLat;
-            mBoxHeightMeters = (mMaxLat - mMinLat).toFloat() * 1.111329f;
+            mBoxWidthMeters = ((mMaxLon - mMinLon).toFloat() * 1.113195f * mRouteCosLat).toFloat();
+            mBoxHeightMeters = ((mMaxLat - mMinLat).toFloat() * 1.111329f).toFloat();
         } else {
             mMinLat = 0;
             mMaxLat = 0;
@@ -258,8 +291,9 @@ class RouteDataField extends WatchUi.DataField {
             mBoxWidthMeters = 0.0f;
             mBoxHeightMeters = 0.0f;
         }
+    }
 
-        // Calculate cumulative route distances for on-demand chevron rendering (<520 Bytes)
+    private function computeCumulativeDistances() as Void {
         if (mPointCount >= 2) {
             mCumDist = new [mPointCount] as Array<Float>;
             mCumDist[0] = 0.0f;
@@ -269,7 +303,7 @@ class RouteDataField extends WatchUi.DataField {
                 var p2Idx = (i + 1) * 2;
                 var dx = (mPoints[p2Idx + 1] - mPoints[p1Idx + 1]) * 1.113195f * mRouteCosLat;
                 var dy = (mPoints[p2Idx] - mPoints[p1Idx]) * 1.111329f;
-                totalMeters += Math.sqrt(dx * dx + dy * dy);
+                totalMeters += Math.sqrt(dx * dx + dy * dy).toFloat();
                 mCumDist[i + 1] = totalMeters;
             }
             mTotalRouteMeters = totalMeters;
@@ -278,14 +312,14 @@ class RouteDataField extends WatchUi.DataField {
             mTotalRouteMeters = 0.0f;
         }
 
-        // Initialize Visited Segments bitfield (< 20 Bytes)
         clearVisitedSegments();
         mCurrentSegmentIndex = 0;
         mCurrentSegmentProgress = 0.0f;
         mTurnDist = -1;
         mTurnDirection = 0;
+    }
 
-        // Precompute sharp corner anchors (turning intersections where angle >= 38 degrees)
+    private function computeCornerAnchors() as Void {
         if (mPointCount >= 3) {
             var rawCorners = new [mPointCount] as Array<Number>;
             var rawAngles = new [mPointCount] as Array<Number>;
@@ -335,45 +369,37 @@ class RouteDataField extends WatchUi.DataField {
             mCornerIndices = [] as Array<Number>;
             mCornerAngles = [] as Array<Number>;
         }
-
-        // Reset trail history
-        mTrailCount = 0;
-        mTrailHead = 0;
-        mLastTrailLat = 0;
-        mLastTrailLon = 0;
-
-        mSparkCount = 0;
-        mSparkHead = 0;
-        mLastSparkLat = 0;
-        mLastSparkLon = 0;
-
-        mGpsLostCount = 0;
-        if (!mHasGps) {
-            mHasEverHadGps = false;
-        }
     }
 
     //! Core computation: updates GPS coordinates, smooth heading, progress tracking, and Cross-Track Distance
     function compute(info as Activity.Info) as Void {
         // 1. Read heading: Speed-aware dynamic heading selection
-        // In motion (speed > 0.8 m/s ≈ 2.8 km/h), prioritize GPS ground track (info.track)
-        // so that the heading-up view accurately reflects bodily direction of travel,
-        // eliminating wrist-angle tilt (e.g. wearing watch on left wrist).
-        // When stationary or standing still, fall back to hardware 3-axis electronic compass.
-        var speed = info.currentSpeed;
+        var speed = (info has :currentSpeed && info.currentSpeed != null) ? info.currentSpeed : null;
         var hasTrack = (info has :track && info.track != null);
 
         if (hasTrack && (speed == null || speed > 0.8f)) {
-            mTargetHeading = info.track.toFloat();
-        } else if (info.currentHeading != null) {
-            mTargetHeading = info.currentHeading.toFloat();
+            var trk = info.track;
+            if (trk != null) {
+                mTargetHeading = trk.toFloat();
+            }
+        } else if (info has :currentHeading && info.currentHeading != null) {
+            var ch = info.currentHeading;
+            if (ch != null) {
+                mTargetHeading = ch.toFloat();
+            }
         } else if (hasTrack) {
-            mTargetHeading = info.track.toFloat();
+            var trk = info.track;
+            if (trk != null) {
+                mTargetHeading = trk.toFloat();
+            }
         } else {
             try {
                 var posInfo = Position.getInfo();
                 if (posInfo != null && posInfo.heading != null) {
-                    mTargetHeading = posInfo.heading.toFloat();
+                    var h = posInfo.heading;
+                    if (h != null) {
+                        mTargetHeading = h.toFloat();
+                    }
                 }
             } catch (e) {
             }
@@ -387,11 +413,10 @@ class RouteDataField extends WatchUi.DataField {
         while (diff < -Math.PI) {
             diff += 2 * Math.PI;
         }
-        // Smooth approach (approaches target by ~40% per second)
         mRenderHeading += diff * 0.40f;
 
         // 3. Verify GPS readiness
-        var location = info.currentLocation;
+        var location = (info has :currentLocation && info.currentLocation != null) ? info.currentLocation : null;
         if (location == null) {
             try {
                 var posInfo = Position.getInfo();
@@ -416,7 +441,6 @@ class RouteDataField extends WatchUi.DataField {
         var latDeg = degrees[0].toDouble();
         var lonDeg = degrees[1].toDouble();
 
-        // Guard against (0, 0) coordinates if hardware returns null island before fix
         if (latDeg == 0.0d && lonDeg == 0.0d) {
             if (mGpsLostCount < 5 && mCurrLatMicro != 0) {
                 mGpsLostCount++;
@@ -431,15 +455,13 @@ class RouteDataField extends WatchUi.DataField {
         mHasGps = true;
         mHasEverHadGps = true;
 
-        // Convert to microdegrees (integer)
         mCurrLatMicro = (latDeg * 100000.0d).toNumber();
         mCurrLonMicro = (lonDeg * 100000.0d).toNumber();
 
-        // Cosine of latitude for metric conversion of longitude
         var latRad = (latDeg * Math.PI / 180.0d).toFloat();
-        mCosLat = Math.cos(latRad);
+        mCosLat = Math.cos(latRad).toFloat();
 
-        // 4. Record smooth trail points (every >5m, Plan A)
+        // 4. Record smooth trail points (every >5m)
         var dLatFromLast = (mCurrLatMicro - mLastTrailLat) * 1.111329f;
         var dLonFromLast = (mCurrLonMicro - mLastTrailLon) * 1.113195f * mCosLat;
         if (dLatFromLast * dLatFromLast + dLonFromLast * dLonFromLast > 25.0f || mTrailCount == 0) {
@@ -454,7 +476,7 @@ class RouteDataField extends WatchUi.DataField {
             mLastTrailLon = mCurrLonMicro;
         }
 
-        // 5. Record 20-meter milestone sparks (dropped at fixed ground coordinates, fades out in place)
+        // 5. Record 20-meter milestone sparks
         var dSparkLat = (mCurrLatMicro - mLastSparkLat) * 1.111329f;
         var dSparkLon = (mCurrLonMicro - mLastSparkLon) * 1.113195f * mCosLat;
         if (dSparkLat * dSparkLat + dSparkLon * dSparkLon >= 400.0f || mSparkCount == 0) {
@@ -475,7 +497,6 @@ class RouteDataField extends WatchUi.DataField {
             return;
         }
 
-        // Zero-Motion Idle Throttling (saves ~80% CPU during traffic light stops or water breaks)
         var isStationary = (speed != null && speed < 0.35f && (dLatFromLast * dLatFromLast + dLonFromLast * dLonFromLast < 4.0f));
         if (isStationary && !mPreviewMode) {
             return;
@@ -486,7 +507,6 @@ class RouteDataField extends WatchUi.DataField {
         var bestSeg = mCurrentSegmentIndex;
         var bestT = 0.0f;
 
-        // (A) Priority window: [mCurrentSegmentIndex - 2, mCurrentSegmentIndex + 4]
         var startSearch = mCurrentSegmentIndex - 2;
         if (startSearch < 0) {
             startSearch = 0;
@@ -502,7 +522,6 @@ class RouteDataField extends WatchUi.DataField {
 
             var ax = (mPoints[idxA + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
             var ay = (mPoints[idxA] - mCurrLatMicro) * 1.111329f;
-
             var bx = (mPoints[idxB + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
             var by = (mPoints[idxB] - mCurrLatMicro) * 1.111329f;
 
@@ -534,7 +553,6 @@ class RouteDataField extends WatchUi.DataField {
             }
         }
 
-        // (B) Fallback Global Search if runner deviated or started mid-route (> 45m from window)
         if (minDist > 45.0f) {
             for (var i = 0; i < mPointCount - 1; i++) {
                 if (i >= startSearch && i <= endSearch) {
@@ -545,7 +563,6 @@ class RouteDataField extends WatchUi.DataField {
 
                 var ax = (mPoints[idxA + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
                 var ay = (mPoints[idxA] - mCurrLatMicro) * 1.111329f;
-
                 var bx = (mPoints[idxB + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
                 var by = (mPoints[idxB] - mCurrLatMicro) * 1.111329f;
 
@@ -578,13 +595,11 @@ class RouteDataField extends WatchUi.DataField {
             }
         }
 
-        // Update progress if on-course (< 45m)
         if (minDist <= 45.0f) {
             mCurrentSegmentIndex = bestSeg;
-            mCurrentSegmentProgress = bestT;
+            mCurrentSegmentProgress = bestT.toFloat();
             markSegmentVisited(mCurrentSegmentIndex);
 
-            // Loop wrap-around support: if at the end of route but earlier segments remain unvisited
             if (mCurrentSegmentIndex >= mPointCount - 2 && bestT > 0.85f) {
                 var hasUnvisited = false;
                 for (var v = 0; v < mPointCount - 1; v++) {
@@ -594,7 +609,6 @@ class RouteDataField extends WatchUi.DataField {
                     }
                 }
                 if (hasUnvisited) {
-                    // Check distance to segment 0
                     var p0A = 0;
                     var d0x = (mPoints[p0A + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
                     var d0y = (mPoints[p0A] - mCurrLatMicro) * 1.111329f;
@@ -613,16 +627,13 @@ class RouteDataField extends WatchUi.DataField {
         var dStartLatM = (pStartLat - mCurrLatMicro) * 1.111329f;
         var distToStart = Math.sqrt(dStartLonM * dStartLonM + dStartLatM * dStartLatM);
         mDistToStart = distToStart.toNumber();
-        mBearingToStart = Math.atan2(dStartLonM, dStartLatM);
+        mBearingToStart = Math.atan2(dStartLonM, dStartLatM).toFloat();
 
-        // Smart Route Preview Trigger:
-        // When runner is far from the route (> 250m), activate full preview mode!
         if (minDist > 250.0f) {
             mPreviewMode = true;
             mIsOffCourse = false;
         } else {
             mPreviewMode = false;
-            // Off-course alert evaluation (only when active in live navigation mode)
             if (minDist > OFF_COURSE_THRESHOLD_M) {
                 mIsOffCourse = true;
                 mOffCourseDist = minDist.toNumber();
@@ -675,52 +686,54 @@ class RouteDataField extends WatchUi.DataField {
         var cx = w / 2;
         var cy = h / 2;
 
-        // 1. Pure black background (AMOLED deep night black)
+        // 1. Pure black background
         dc.setColor(COLOR_BLACK, COLOR_BLACK);
         dc.clear();
 
-        // 2. Status message: No route or waiting for GPS
+        // 2. Status message: No route
         if (mPointCount < 2) {
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, cy - 24, Graphics.FONT_MEDIUM, "NO ROUTE", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, cy - 24, Graphics.FONT_MEDIUM, "NO ROUTE", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, cy + 12, Graphics.FONT_XTINY, "PASTE IN APP SETTINGS", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, cy + 28, Graphics.FONT_XTINY, "PASTE IN APP SETTINGS", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             return;
         }
 
-        // 3. Waiting for GPS OR Far Away Route Preview (> 250m from route)
+        // 3. Waiting for GPS OR Far Away Route Preview
         if (!mHasGps || mPreviewMode) {
             renderRoutePreview(dc, cx, cy, w, h);
             return;
         }
 
-        // 3. 2D rotation matrix: Heading-Up projection
+        // 4. Heading-Up projection parameters
         var heading = mRenderHeading;
-        var sinH = Math.sin(heading);
-        var cosH = Math.cos(heading);
-
-        // 4. Dynamic zoom scale: screen radius cx maps to mMapRange in meters
+        var sinH = Math.sin(heading).toFloat();
+        var cosH = Math.cos(heading).toFloat();
         var zoomScale = (cx.toFloat()) / mMapRange;
 
-        // 4. Render route geometry (Visited segments dimmed, upcoming vibrant cyan)
+        // 5. Modular rendering pipeline
+        renderRouteGeometry(dc, cx, cy, w, h, sinH, cosH, zoomScale);
+        renderCornerAnchors(dc, cx, cy, w, h, sinH, cosH, zoomScale);
+        renderFireflyTrail(dc, cx, cy, sinH, cosH, zoomScale);
+        renderSparks(dc, cx, cy, sinH, cosH, zoomScale);
+        renderRunnerCursor(dc, cx, cy);
+        renderAlertBanners(dc, cx, cy);
+    }
+
+    private function renderRouteGeometry(dc as Graphics.Dc, cx as Number, cy as Number, w as Number, h as Number, sinH as Float, cosH as Float, zoomScale as Float) as Void {
         for (var i = 0; i < mPointCount - 1; i++) {
             var idxA = i * 2;
             var idxB = (i + 1) * 2;
 
             var ax = (mPoints[idxA + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
             var ay = (mPoints[idxA] - mCurrLatMicro) * 1.111329f;
-
             var bx = (mPoints[idxB + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
             var by = (mPoints[idxB] - mCurrLatMicro) * 1.111329f;
 
-            // Viewport culling: skip if both endpoints are outside view radius
-            var distSqA = ax * ax + ay * ay;
-            var distSqB = bx * bx + by * by;
-            if (distSqA > mCullDistSq && distSqB > mCullDistSq) {
+            if (ax * ax + ay * ay > mCullDistSq && bx * bx + by * by > mCullDistSq) {
                 continue;
             }
 
-            // Heading-up 2D projection
             var sx1 = cx + (ax * cosH - ay * sinH) * zoomScale;
             var sy1 = cy - (ay * cosH + ax * sinH) * zoomScale;
             var sx2 = cx + (bx * cosH - by * sinH) * zoomScale;
@@ -730,44 +743,37 @@ class RouteDataField extends WatchUi.DataField {
             var isCurrent = (i == mCurrentSegmentIndex);
 
             if (mDimCompletedPath && isVisited && !isCurrent) {
-                // Truly visited segment: Dimmed Slate-Cyan (keeps GPS art pattern visible)
                 dc.setColor(COLOR_DIMMED_CYAN, Graphics.COLOR_TRANSPARENT);
                 dc.setPenWidth(3);
                 dc.drawLine(sx1.toNumber(), sy1.toNumber(), sx2.toNumber(), sy2.toNumber());
             } else if (mDimCompletedPath && isCurrent) {
-                // Current segment: split into traversed (dimmed) and upcoming (cyan)
                 var t = mCurrentSegmentProgress;
                 var midX = sx1 + (sx2 - sx1) * t;
                 var midY = sy1 + (sy2 - sy1) * t;
 
-                // Past portion
                 dc.setColor(COLOR_DIMMED_CYAN, Graphics.COLOR_TRANSPARENT);
                 dc.setPenWidth(3);
                 dc.drawLine(sx1.toNumber(), sy1.toNumber(), midX.toNumber(), midY.toNumber());
 
-                // Upcoming portion
                 dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
                 dc.setPenWidth(4);
                 dc.drawLine(midX.toNumber(), midY.toNumber(), sx2.toNumber(), sy2.toNumber());
 
-                // Smooth node caps
                 dc.setColor(COLOR_DIMMED_CYAN, COLOR_DIMMED_CYAN);
                 dc.fillCircle(sx1.toNumber(), sy1.toNumber(), 2);
                 dc.setColor(COLOR_CYAN, COLOR_CYAN);
                 dc.fillCircle(sx2.toNumber(), sy2.toNumber(), 2);
             } else {
-                // Upcoming unvisited segment: Vibrant Electric Cyan 4px
                 dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
                 dc.setPenWidth(4);
                 dc.drawLine(sx1.toNumber(), sy1.toNumber(), sx2.toNumber(), sy2.toNumber());
 
-                // Smooth rounded node caps at vertices
                 dc.setColor(COLOR_CYAN, COLOR_CYAN);
                 dc.fillCircle(sx1.toNumber(), sy1.toNumber(), 2);
                 dc.fillCircle(sx2.toNumber(), sy2.toNumber(), 2);
             }
 
-            // 5. On-demand directional chevrons rendered directly on visible segments (50m / 250m)
+            // Directional chevrons
             if (mShowDirection && mCumDist != null && i < mCumDist.size() - 1) {
                 var startD = mCumDist[i];
                 var endD = mCumDist[i + 1];
@@ -794,8 +800,6 @@ class RouteDataField extends WatchUi.DataField {
 
                             if (csx >= -25 && csx <= w + 25 && csy >= -25 && csy <= h + 25) {
                                 var isMajor = ((kStart % 5) == 0);
-
-                                // Check if this chevron is on completed / traversed path
                                 var isChevronPassed = false;
                                 if (i < mCurrentSegmentIndex || (isVisited && !isCurrent)) {
                                     isChevronPassed = true;
@@ -832,7 +836,6 @@ class RouteDataField extends WatchUi.DataField {
                                     dc.drawLine(rightX.toNumber(), rightY.toNumber(), tipX.toNumber(), tipY.toNumber());
                                 }
                             }
-
                             kStart++;
                             curTarget = kStart * 50.0f;
                         }
@@ -840,121 +843,123 @@ class RouteDataField extends WatchUi.DataField {
                 }
             }
         }
+    }
 
-        // 5b. Render Corner Anchor Beacon Dots (Key turning intersections)
-        if (mShowCornerAnchors && mCornerCount > 0) {
-            for (var c = 0; c < mCornerCount; c++) {
-                var cPointIdx = mCornerIndices[c];
-                var cLat = mPoints[cPointIdx * 2];
-                var cLon = mPoints[cPointIdx * 2 + 1];
+    private function renderCornerAnchors(dc as Graphics.Dc, cx as Number, cy as Number, w as Number, h as Number, sinH as Float, cosH as Float, zoomScale as Float) as Void {
+        if (!mShowCornerAnchors || mCornerCount <= 0) {
+            return;
+        }
 
-                var ax = (cLon - mCurrLonMicro) * 1.113195f * mCosLat;
-                var ay = (cLat - mCurrLatMicro) * 1.111329f;
+        for (var c = 0; c < mCornerCount; c++) {
+            var cPointIdx = mCornerIndices[c];
+            var cLat = mPoints[cPointIdx * 2];
+            var cLon = mPoints[cPointIdx * 2 + 1];
 
-                if (ax * ax + ay * ay > mCullDistSq) {
-                    continue;
-                }
+            var ax = (cLon - mCurrLonMicro) * 1.113195f * mCosLat;
+            var ay = (cLat - mCurrLatMicro) * 1.111329f;
 
-                var sx = cx + (ax * cosH - ay * sinH) * zoomScale;
-                var sy = cy - (ay * cosH + ax * sinH) * zoomScale;
+            if (ax * ax + ay * ay > mCullDistSq) {
+                continue;
+            }
 
-                if (sx < -20 || sx > w + 20 || sy < -20 || sy > h + 20) {
-                    continue;
-                }
+            var sx = cx + (ax * cosH - ay * sinH) * zoomScale;
+            var sy = cy - (ay * cosH + ax * sinH) * zoomScale;
 
-                var isPassed = (mDimCompletedPath && isSegmentVisited(cPointIdx));
+            if (sx < -20 || sx > w + 20 || sy < -20 || sy > h + 20) {
+                continue;
+            }
 
-                if (isPassed) {
-                    // Dimmed past corner dot
-                    dc.setColor(COLOR_DIMMED_CYAN, COLOR_DIMMED_CYAN);
-                    dc.fillCircle(sx.toNumber(), sy.toNumber(), 3);
-                } else {
-                    // Upcoming sharp corner: glowing halo ring + bright white core
-                    dc.setColor(COLOR_DIMMED_CYAN, COLOR_DIMMED_CYAN);
-                    dc.fillCircle(sx.toNumber(), sy.toNumber(), 6);
-                    dc.setColor(COLOR_CYAN, COLOR_CYAN);
-                    dc.fillCircle(sx.toNumber(), sy.toNumber(), 3);
+            var isPassed = (mDimCompletedPath && isSegmentVisited(cPointIdx));
+
+            if (isPassed) {
+                dc.setColor(COLOR_DIMMED_CYAN, COLOR_DIMMED_CYAN);
+                dc.fillCircle(sx.toNumber(), sy.toNumber(), 3);
+            } else {
+                dc.setColor(COLOR_DIMMED_CYAN, COLOR_DIMMED_CYAN);
+                dc.fillCircle(sx.toNumber(), sy.toNumber(), 6);
+                dc.setColor(COLOR_CYAN, COLOR_CYAN);
+                dc.fillCircle(sx.toNumber(), sy.toNumber(), 3);
+                dc.setColor(COLOR_WHITE, COLOR_WHITE);
+                dc.fillCircle(sx.toNumber(), sy.toNumber(), 1);
+            }
+        }
+    }
+
+    private function renderFireflyTrail(dc as Graphics.Dc, cx as Number, cy as Number, sinH as Float, cosH as Float, zoomScale as Float) as Void {
+        if (mTrailCount <= 1) {
+            return;
+        }
+
+        var startIdx = (mTrailHead - mTrailCount + TRAIL_CAPACITY) % TRAIL_CAPACITY;
+        var numSegs = mTrailCount - 1;
+
+        dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(3);
+
+        for (var t = 0; t < numSegs; t++) {
+            var p1Idx = ((startIdx + t) % TRAIL_CAPACITY) * 2;
+            var p2Idx = ((startIdx + t + 1) % TRAIL_CAPACITY) * 2;
+
+            var tax1 = (mTrailPoints[p1Idx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
+            var tay1 = (mTrailPoints[p1Idx] - mCurrLatMicro) * 1.111329f;
+            var tax2 = (mTrailPoints[p2Idx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
+            var tay2 = (mTrailPoints[p2Idx] - mCurrLatMicro) * 1.111329f;
+
+            if (tax1 * tax1 + tay1 * tay1 <= mCullDistSq || tax2 * tax2 + tay2 * tay2 <= mCullDistSq) {
+                var tsx1 = cx + (tax1 * cosH - tay1 * sinH) * zoomScale;
+                var tsy1 = cy - (tay1 * cosH + tax1 * sinH) * zoomScale;
+                var tsx2 = cx + (tax2 * cosH - tay2 * sinH) * zoomScale;
+                var tsy2 = cy - (tay2 * cosH + tax2 * sinH) * zoomScale;
+
+                dc.drawLine(tsx1.toNumber(), tsy1.toNumber(), tsx2.toNumber(), tsy2.toNumber());
+            }
+        }
+
+        var lastPointIdx = ((mTrailHead - 1 + TRAIL_CAPACITY) % TRAIL_CAPACITY) * 2;
+        var ltax = (mTrailPoints[lastPointIdx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
+        var ltay = (mTrailPoints[lastPointIdx] - mCurrLatMicro) * 1.111329f;
+        var ltsx = cx + (ltax * cosH - ltay * sinH) * zoomScale;
+        var ltsy = cy - (ltay * cosH + ltax * sinH) * zoomScale;
+
+        dc.drawLine(ltsx.toNumber(), ltsy.toNumber(), cx, cy + 4);
+    }
+
+    private function renderSparks(dc as Graphics.Dc, cx as Number, cy as Number, sinH as Float, cosH as Float, zoomScale as Float) as Void {
+        if (mSparkCount <= 0) {
+            return;
+        }
+
+        var sparkStartIdx = (mSparkHead - mSparkCount + SPARK_CAPACITY) % SPARK_CAPACITY;
+        for (var s = 0; s < mSparkCount; s++) {
+            var spIdx = ((sparkStartIdx + s) % SPARK_CAPACITY) * 2;
+            var sax = (mSparkPoints[spIdx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
+            var say = (mSparkPoints[spIdx] - mCurrLatMicro) * 1.111329f;
+
+            if (sax * sax + say * say <= mCullDistSq) {
+                var ssx = cx + (sax * cosH - say * sinH) * zoomScale;
+                var ssy = cy - (say * cosH + sax * sinH) * zoomScale;
+
+                var sparkRatio = (s + 1).toFloat() / mSparkCount.toFloat();
+
+                if (sparkRatio < 0.35f) {
+                    dc.setColor(COLOR_LIME_FAINT, COLOR_LIME_FAINT);
+                    dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 2);
+                } else if (sparkRatio < 0.70f) {
+                    dc.setColor(COLOR_LIME_MID, COLOR_LIME_MID);
+                    dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 3);
                     dc.setColor(COLOR_WHITE, COLOR_WHITE);
-                    dc.fillCircle(sx.toNumber(), sy.toNumber(), 1);
+                    dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 1);
+                } else {
+                    dc.setColor(COLOR_LIME, COLOR_LIME);
+                    dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 4);
+                    dc.setColor(COLOR_WHITE, COLOR_WHITE);
+                    dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 2);
                 }
             }
         }
+    }
 
-        // 6. Render smooth firefly trail (pure sleek lime green line)
-        if (mTrailCount > 1) {
-            var startIdx = (mTrailHead - mTrailCount + TRAIL_CAPACITY) % TRAIL_CAPACITY;
-            var numSegs = mTrailCount - 1;
-
-            dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(3);
-
-            for (var t = 0; t < numSegs; t++) {
-                var p1Idx = ((startIdx + t) % TRAIL_CAPACITY) * 2;
-                var p2Idx = ((startIdx + t + 1) % TRAIL_CAPACITY) * 2;
-
-                var tax1 = (mTrailPoints[p1Idx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
-                var tay1 = (mTrailPoints[p1Idx] - mCurrLatMicro) * 1.111329f;
-                var tax2 = (mTrailPoints[p2Idx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
-                var tay2 = (mTrailPoints[p2Idx] - mCurrLatMicro) * 1.111329f;
-
-                if (tax1 * tax1 + tay1 * tay1 <= mCullDistSq || tax2 * tax2 + tay2 * tay2 <= mCullDistSq) {
-                    var tsx1 = cx + (tax1 * cosH - tay1 * sinH) * zoomScale;
-                    var tsy1 = cy - (tay1 * cosH + tax1 * sinH) * zoomScale;
-                    var tsx2 = cx + (tax2 * cosH - tay2 * sinH) * zoomScale;
-                    var tsy2 = cy - (tay2 * cosH + tax2 * sinH) * zoomScale;
-
-                    dc.drawLine(tsx1.toNumber(), tsy1.toNumber(), tsx2.toNumber(), tsy2.toNumber());
-                }
-            }
-
-            // Connect newest recorded trail point directly to current runner position (cx, cy + 4)
-            var lastPointIdx = ((mTrailHead - 1 + TRAIL_CAPACITY) % TRAIL_CAPACITY) * 2;
-            var ltax = (mTrailPoints[lastPointIdx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
-            var ltay = (mTrailPoints[lastPointIdx] - mCurrLatMicro) * 1.111329f;
-            var ltsx = cx + (ltax * cosH - ltay * sinH) * zoomScale;
-            var ltsy = cy - (ltay * cosH + ltax * sinH) * zoomScale;
-
-            dc.drawLine(ltsx.toNumber(), ltsy.toNumber(), cx, cy + 4);
-        }
-
-        // 6. Render 20m milestone firefly sparks (10 dots covering 200m, fixed in world coordinates, fading in place)
-        if (mSparkCount > 0) {
-            var sparkStartIdx = (mSparkHead - mSparkCount + SPARK_CAPACITY) % SPARK_CAPACITY;
-            for (var s = 0; s < mSparkCount; s++) {
-                var spIdx = ((sparkStartIdx + s) % SPARK_CAPACITY) * 2;
-                var sax = (mSparkPoints[spIdx + 1] - mCurrLonMicro) * 1.113195f * mCosLat;
-                var say = (mSparkPoints[spIdx] - mCurrLatMicro) * 1.111329f;
-
-                if (sax * sax + say * say <= mCullDistSq) {
-                    var ssx = cx + (sax * cosH - say * sinH) * zoomScale;
-                    var ssy = cy - (say * cosH + sax * sinH) * zoomScale;
-
-                    var sparkRatio = (s + 1).toFloat() / mSparkCount.toFloat(); // 0 (oldest) -> 1 (newest)
-
-                    if (sparkRatio < 0.35f) {
-                        // Distant dot: faint green dot (fading out)
-                        dc.setColor(COLOR_LIME_FAINT, COLOR_LIME_FAINT);
-                        dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 2);
-                    } else if (sparkRatio < 0.70f) {
-                        // Mid-range: lime spark + white core
-                        dc.setColor(COLOR_LIME_MID, COLOR_LIME_MID);
-                        dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 3);
-                        dc.setColor(COLOR_WHITE, COLOR_WHITE);
-                        dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 1);
-                    } else {
-                        // Near runner: glowing lime halo + bright white core
-                        dc.setColor(COLOR_LIME, COLOR_LIME);
-                        dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 4);
-                        dc.setColor(COLOR_WHITE, COLOR_WHITE);
-                        dc.fillCircle(ssx.toNumber(), ssy.toNumber(), 2);
-                    }
-                }
-            }
-        }
-
-        // 7. Render runner cursor: GPS Navigation Chevron in bioluminescent lime green (#a3e635)
-
-        // (1) Arrow body
+    private function renderRunnerCursor(dc as Graphics.Dc, cx as Number, cy as Number) as Void {
         dc.setColor(COLOR_LIME, COLOR_LIME);
         var navDart = [
             [cx, cy - 14],
@@ -964,7 +969,6 @@ class RouteDataField extends WatchUi.DataField {
         ];
         dc.fillPolygon(navDart);
 
-        // (2) Crisp white border outline
         dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.setPenWidth(2);
         dc.drawLine(cx, cy - 14, cx + 9, cy + 10);
@@ -972,52 +976,48 @@ class RouteDataField extends WatchUi.DataField {
         dc.drawLine(cx, cy + 5, cx - 9, cy + 10);
         dc.drawLine(cx - 9, cy + 10, cx, cy - 14);
 
-        // (3) Center guidance dot
         dc.setColor(COLOR_WHITE, COLOR_WHITE);
         dc.fillCircle(cx, cy - 1, 3);
+    }
 
-        // 8. Off-course alert banner
+    private function renderAlertBanners(dc as Graphics.Dc, cx as Number, cy as Number) as Void {
         if (mIsOffCourse) {
-            var bannerW = 230;
-            var bannerH = 36;
+            var bannerW = 210;
+            var bannerH = 34;
             var bannerX = cx - (bannerW / 2);
-            var bannerY = 24;
+            var bannerY = 36;
 
             dc.setColor(COLOR_ALERT, COLOR_ALERT);
             dc.fillRoundedRectangle(bannerX, bannerY, bannerW, bannerH, 6);
 
             dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             var alertText = "OFF COURSE (+" + mOffCourseDist + "m)";
-            dc.drawText(cx, bannerY + 6, Graphics.FONT_XTINY, alertText, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, bannerY + (bannerH / 2), Graphics.FONT_XTINY, alertText, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
 
-        // 9. Upcoming Turn Cue Badge (< 60m from corner) - Enlarged, Top-Centered & High-Contrast
         if (mShowTurnCue && !mIsOffCourse && mTurnDist >= 0 && mTurnDist <= 60) {
             var badgeW = 144;
-            var badgeH = 38;
+            var badgeH = 36;
             var badgeX = cx - (badgeW / 2);
-            var badgeY = 26;
+            var badgeY = 36;
 
             var isImminent = (mTurnDist <= 20);
             var bgColor = isImminent ? COLOR_AMBER_BG : COLOR_BADGE_BG;
             var borderColor = isImminent ? COLOR_AMBER_BORDER : COLOR_BADGE_BORDER;
 
-            // Background & prominent border
             dc.setColor(bgColor, bgColor);
             dc.fillRoundedRectangle(badgeX, badgeY, badgeW, badgeH, 8);
             dc.setColor(borderColor, Graphics.COLOR_TRANSPARENT);
             dc.setPenWidth(3);
             dc.drawRoundedRectangle(badgeX, badgeY, badgeW, badgeH, 8);
 
-            // Bold Vector Turn Arrow (Pen width 3)
             dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             dc.setPenWidth(3);
 
             var arrowCornerY = badgeY + 11;
-            var arrowStemY = badgeY + 26;
+            var arrowStemY = badgeY + 25;
 
             if (mTurnDirection > 0) {
-                // Bold Right Turn Arrow
                 var arrowStemX = badgeX + 16;
                 var arrowHeadX = badgeX + 36;
                 dc.drawLine(arrowStemX, arrowStemY, arrowStemX, arrowCornerY);
@@ -1025,7 +1025,6 @@ class RouteDataField extends WatchUi.DataField {
                 dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX - 6, arrowCornerY - 6);
                 dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX - 6, arrowCornerY + 6);
             } else {
-                // Bold Left Turn Arrow
                 var arrowStemX = badgeX + 36;
                 var arrowHeadX = badgeX + 16;
                 dc.drawLine(arrowStemX, arrowStemY, arrowStemX, arrowCornerY);
@@ -1034,7 +1033,6 @@ class RouteDataField extends WatchUi.DataField {
                 dc.drawLine(arrowHeadX, arrowCornerY, arrowHeadX + 6, arrowCornerY + 6);
             }
 
-            // Bold Distance text e.g. "45m" (Using FONT_TINY instead of FONT_XTINY)
             var distText = mTurnDist + "m";
             dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             dc.drawText(badgeX + 48, badgeY + (badgeH / 2), Graphics.FONT_TINY, distText, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
@@ -1055,9 +1053,8 @@ class RouteDataField extends WatchUi.DataField {
         } else {
             totalDistStr = mTotalRouteMeters.toNumber() + " m";
         }
-        dc.drawText(cx, 18, Graphics.FONT_XTINY, "GPS ART (" + totalDistStr + ")", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(cx, 36, Graphics.FONT_XTINY, "GPS ART (" + totalDistStr + ")", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // Bounding box dimensions e.g. "W 1.8k  H 2.4k"
         var wStr = "";
         if (mBoxWidthMeters >= 1000.0f) {
             wStr = "W " + (mBoxWidthMeters / 1000.0f).format("%.1f") + "k";
@@ -1071,12 +1068,12 @@ class RouteDataField extends WatchUi.DataField {
             hStr = "H " + mBoxHeightMeters.toNumber() + "m";
         }
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, 38, Graphics.FONT_XTINY, wStr + "  " + hStr, Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(cx, 62, Graphics.FONT_XTINY, wStr + "   " + hStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-        // 2. Compute route thumbnail placement & scaling
-        var thumbCy = (h * 0.49f).toNumber();
-        var maxThumbW = (w * 0.65f);
-        var maxThumbH = (h * 0.46f);
+        // 2. Compute route thumbnail placement & scaling (lifted up to prevent overlapping scale bar)
+        var thumbCy = (h * 0.42f).toNumber();
+        var maxThumbW = (w * 0.58f);
+        var maxThumbH = (h * 0.35f);
 
         var dLonMicro = (mMaxLon - mMinLon).toFloat();
         var dLatMicro = (mMaxLat - mMinLat).toFloat();
@@ -1091,10 +1088,8 @@ class RouteDataField extends WatchUi.DataField {
         var scaleY = maxThumbH / dLatMetric;
         var thumbScale = (scaleX < scaleY) ? scaleX : scaleY;
 
-        // Dynamic decimation threshold: skip points closer than 3 screen pixels (3^2 = 9)
         var minStepSq = 9;
 
-        // Draw route path in Electric Cyan (#00e5ff)
         dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
         dc.setPenWidth(3);
 
@@ -1128,7 +1123,6 @@ class RouteDataField extends WatchUi.DataField {
         var endSx = lastSx;
         var endSy = lastSy;
 
-        // Start & End markers
         var isLoop = ((startSx - endSx) * (startSx - endSx) + (startSy - endSy) * (startSy - endSy)) < 36;
         if (isLoop) {
             dc.setColor(COLOR_LIME, COLOR_LIME);
@@ -1164,46 +1158,41 @@ class RouteDataField extends WatchUi.DataField {
             }
 
             var barW = (bestStep * pixelsPerMeter).toNumber();
-            if (barW < 24) { barW = 24; }
-            if (barW > 120) { barW = 120; }
+            if (barW < 30) { barW = 30; }
+            if (barW > 110) { barW = 110; }
             var barX = cx - (barW / 2);
-            var barY = (h * 0.76f).toNumber();
-
-            dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(2);
-            // Horizontal bar
-            dc.drawLine(barX, barY, barX + barW, barY);
-            // Left tick
-            dc.drawLine(barX, barY - 4, barX, barY + 4);
-            // Right tick
-            dc.drawLine(barX + barW, barY - 4, barX + barW, barY + 4);
+            var barY = (h * 0.72f).toNumber();
 
             var scaleLabel = (bestStep >= 1000) ? (bestStep / 1000) + " km" : bestStep + " m";
-            dc.drawText(cx, barY - 15, Graphics.FONT_XTINY, scaleLabel, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, barY - 14, Graphics.FONT_XTINY, scaleLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+            dc.setPenWidth(2);
+            dc.drawLine(barX, barY, barX + barW, barY);
+            dc.drawLine(barX, barY - 4, barX, barY + 4);
+            dc.drawLine(barX + barW, barY - 4, barX + barW, barY + 4);
         }
 
         // 4. Bottom Footer: Guidance to Start or Waiting for GPS
+        var pillW = 216;
+        var pillH = 30;
+        var pillX = cx - (pillW / 2);
+        var pillY = (h * 0.85f).toNumber();
+
         if (!mHasGps) {
             dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_TRANSPARENT);
             var gpsMsg = mHasEverHadGps ? "GPS LOST - SEARCHING..." : "WAITING FOR GPS...";
-            dc.drawText(cx, (h * 0.85f).toNumber(), Graphics.FONT_XTINY, gpsMsg, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, pillY + (pillH / 2), Graphics.FONT_XTINY, gpsMsg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         } else {
-            // Pill banner with distance and direction arrow to Start point
-            var pillW = 200;
-            var pillH = 28;
-            var pillX = cx - (pillW / 2);
-            var pillY = (h * 0.85f).toNumber();
-
             dc.setColor(COLOR_BADGE_BG, COLOR_BADGE_BG);
             dc.fillRoundedRectangle(pillX, pillY, pillW, pillH, 8);
             dc.setColor(COLOR_BADGE_BORDER, Graphics.COLOR_TRANSPARENT);
             dc.setPenWidth(1);
             dc.drawRoundedRectangle(pillX, pillY, pillW, pillH, 8);
 
-            // Vector arrow pointing to Start
             var relAngle = mBearingToStart - mRenderHeading;
             var arrowCx = pillX + 22;
-            var arrowCy = pillY + 14;
+            var arrowCy = pillY + (pillH / 2);
             var adx = Math.sin(relAngle) * 7.0f;
             var ady = -Math.cos(relAngle) * 7.0f;
 
@@ -1222,7 +1211,7 @@ class RouteDataField extends WatchUi.DataField {
                 startDistStr = mDistToStart + " m";
             }
             dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(pillX + 38, pillY + 4, Graphics.FONT_XTINY, "TO START: " + startDistStr, Graphics.TEXT_JUSTIFY_LEFT);
+            dc.drawText(pillX + 42, pillY + (pillH / 2), Graphics.FONT_XTINY, "TO START: " + startDistStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 }

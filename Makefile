@@ -14,7 +14,7 @@ iq:
 
 # Start local web companion workstation
 web:
-	@echo "啟動 He-Kim-Koo 前端工作台: http://localhost:8080"
+	@echo "run He-Kim-Koo frontend web: http://localhost:8080"
 	@python3 -m http.server 8080 --directory web
 
 # Remove compiled artifacts

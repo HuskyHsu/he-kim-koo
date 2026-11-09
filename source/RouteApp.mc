@@ -25,10 +25,13 @@ class RouteApp extends Application.AppBase {
 
     //! Triggered when user updates and saves settings in the Garmin Connect mobile app
     function onSettingsChanged() as Void {
-        if (mDataField != null) {
-            mDataField.reloadRoute();
+        try {
+            if (mDataField != null) {
+                mDataField.reloadRoute();
+            }
+            WatchUi.requestUpdate();
+        } catch (e) {
         }
-        WatchUi.requestUpdate();
     }
 }
 

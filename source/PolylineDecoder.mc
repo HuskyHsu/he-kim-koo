@@ -70,7 +70,8 @@ class PolylineDecoder {
         // Return exact-sized array and release temporary buffer
         var points = new [count] as Array<Number>;
         for (var i = 0; i < count; i++) {
-            points[i] = temp[i];
+            var val = temp[i];
+            points[i] = (val != null) ? (val as Number) : 0;
         }
 
         return points;
