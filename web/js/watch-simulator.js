@@ -34,6 +34,12 @@ const simHeadingSlider = document.getElementById('simHeadingSlider');
 const simHeadingVal = document.getElementById('simHeadingVal');
 const hapticBadge = document.getElementById('hapticBadge');
 
+const simDistSlider = document.getElementById('simDistSlider');
+const simDistVal = document.getElementById('simDistVal');
+const btnDistAtStart = document.getElementById('btnDistAtStart');
+const btnDistNear = document.getElementById('btnDistNear');
+const btnDistFar = document.getElementById('btnDistFar');
+
 const btnTestStart = document.getElementById('btnTestStart');
 const btnTestMidStart = document.getElementById('btnTestMidStart');
 const btnTestFarAway = document.getElementById('btnTestFarAway');
@@ -168,8 +174,7 @@ function seekToDistance(targetMeters) {
   const pA = simRoute[seg];
   const pB = simRoute[seg + 1];
   const segLen = calcDistanceMeters(pA, pB);
-  const progress =
-    segLen > 0.001 ? Math.max(0, Math.min(1.0, (targetMeters - segStartDist) / segLen)) : 0;
+  const progress = segLen > 0.001 ? Math.max(0, Math.min(1.0, (targetMeters - segStartDist) / segLen)) : 0;
 
   simState.segIdx = seg;
   simState.segProgress = progress;
@@ -353,9 +358,7 @@ function resetSimulationState(startSegIdx = 0) {
 
   const nextIdx = validStart + 1;
   const vLat = simRoute[nextIdx].lat - simRoute[validStart].lat;
-  const vLon =
-    (simRoute[nextIdx].lon - simRoute[validStart].lon) *
-    Math.cos((simRoute[validStart].lat * Math.PI) / 180);
+  const vLon = (simRoute[nextIdx].lon - simRoute[validStart].lon) * Math.cos((simRoute[validStart].lat * Math.PI) / 180);
   const initHeading = Math.atan2(vLon, vLat);
   simState.targetHeadingRad = initHeading;
   simState.renderHeadingRad = initHeading;
@@ -370,10 +373,13 @@ function resetSimulationState(startSegIdx = 0) {
     btnSimDeviate.innerText = 'Off-Course Test (+45m)';
   }
 
-  const currentDist =
-    simState.cumDistances && simState.cumDistances[validStart]
-      ? simState.cumDistances[validStart]
-      : 0;
+  if (simDistSlider) simDistSlider.value = 0;
+  if (simDistVal) simDistVal.innerText = '0 m';
+  if (btnDistAtStart) btnDistAtStart.classList.add('btn-active');
+  if (btnDistNear) btnDistNear.classList.remove('btn-active');
+  if (btnDistFar) btnDistFar.classList.remove('btn-active');
+
+  const currentDist = simState.cumDistances && simState.cumDistances[validStart] ? simState.cumDistances[validStart] : 0;
   updateTimelineUI(currentDist);
 }
 
@@ -387,9 +393,11 @@ function togglePlayPause() {
     if (mBtnPlayToggle) mBtnPlayToggle.innerText = 'Resume';
     if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
   } else {
-    if (simState.segIdx >= simRoute.length - 1 || simState.hasFinished) {
-      resetSimulationState();
+    // If starting a run from preview mode or finished, reset to start of route
+    if (simState.previewMode || simState.distToStart > 50 || simState.segIdx >= simRoute.length - 1 || simState.hasFinished) {
+      setDistanceToStart(0);
     }
+    simState.manualHeading = false; // Release manual lock so runner faces moving direction
     simState.isPlaying = true;
     if (btnSimPlay) btnSimPlay.innerText = 'Pause Simulation';
     if (mBtnPlayToggle) mBtnPlayToggle.innerText = 'Pause';
@@ -443,7 +451,9 @@ if (simHeadingSlider) {
   simHeadingSlider.addEventListener('input', (e) => {
     const deg = parseFloat(e.target.value);
     if (simHeadingVal) simHeadingVal.innerText = deg + '°';
-    simState.targetHeadingRad = (deg * Math.PI) / 180;
+    const rad = (deg * Math.PI) / 180;
+    simState.targetHeadingRad = rad;
+    simState.renderHeadingRad = rad; // Immediate update for preview & navigation
     simState.manualHeading = true;
     drawWatchScreen();
   });
@@ -573,22 +583,89 @@ if (btnToggleAnchors) {
   });
 }
 
-if (btnTestFarAway) {
-  btnTestFarAway.addEventListener('click', () => {
-    if (!simRoute || simRoute.length < 2) return;
-    const mBtnPlayToggle = document.getElementById('mBtnPlayToggle');
-    simState.isPlaying = false;
-    if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
-    if (btnSimPlay) btnSimPlay.innerText = 'Start Run Simulation';
-    if (mBtnPlayToggle) mBtnPlayToggle.innerText = 'Start';
+function setDistanceToStart(distMeters) {
+  if (!simRoute || simRoute.length < 2) return;
+  const pStart = simRoute[0];
+  const cosLat0 = Math.cos((pStart.lat * Math.PI) / 180);
 
-    const pStart = simRoute[0];
-    const cosLat0 = Math.cos((pStart.lat * Math.PI) / 180);
-    simState.currLat = pStart.lat - 10000 / 111132.9;
-    simState.currLon = pStart.lon - 7500 / (111319.5 * cosLat0);
-    simState.previewMode = true;
-    drawWatchScreen();
+  // Stop active playback if running
+  simState.isPlaying = false;
+  if (simState.animFrame) cancelAnimationFrame(simState.animFrame);
+  if (btnSimPlay) btnSimPlay.innerText = 'Start Run Simulation';
+  const mBtnPlayToggle = document.getElementById('mBtnPlayToggle');
+  if (mBtnPlayToggle) mBtnPlayToggle.innerText = 'Start';
+
+  const D = Math.max(0, distMeters);
+
+  if (D === 0) {
+    simState.previewMode = false;
+    simState.manualHeading = false;
+    simState.segIdx = 0;
+    simState.segProgress = 0.0;
+    simState.currLat = pStart.lat;
+    simState.currLon = pStart.lon;
+    simState.distToStart = 0;
+    if (simRoute.length >= 2) {
+      const pB = simRoute[1];
+      const vLat = pB.lat - pStart.lat;
+      const vLon = (pB.lon - pStart.lon) * cosLat0;
+      const initH = Math.atan2(vLon, vLat);
+      simState.targetHeadingRad = initH;
+      simState.renderHeadingRad = initH;
+      const deg = Math.round(((initH * 180) / Math.PI + 360) % 360);
+      if (simHeadingSlider) simHeadingSlider.value = deg;
+      if (simHeadingVal) simHeadingVal.innerText = deg + '°';
+    }
+    simTrail = [{ lat: pStart.lat, lon: pStart.lon }];
+    simSparks = [{ lat: pStart.lat, lon: pStart.lon }];
+    updateTimelineUI(0);
+  } else {
+    // Offset along Southwest bearing (225 deg) from start point
+    const bearingRad = (225 * Math.PI) / 180;
+    const dLat = (D * Math.cos(bearingRad)) / 111132.9;
+    const dLon = (D * Math.sin(bearingRad)) / (111319.5 * cosLat0);
+    simState.currLat = pStart.lat + dLat;
+    simState.currLon = pStart.lon + dLon;
+    simState.distToStart = D;
+    simState.previewMode = (D > 100);
+    simState.renderHeadingRad = simState.targetHeadingRad;
+  }
+
+  // Update slider & readout
+  if (simDistSlider) simDistSlider.value = D;
+  if (simDistVal) {
+    simDistVal.innerText = D >= 1000 ? `${(D / 1000).toFixed(1)} km` : `${Math.round(D)} m`;
+  }
+
+  // Update button active state
+  if (btnDistAtStart) btnDistAtStart.classList.toggle('btn-active', D === 0);
+  if (btnDistNear) btnDistNear.classList.toggle('btn-active', D > 100 && D < 1000);
+  if (btnDistFar) btnDistFar.classList.toggle('btn-active', D >= 1000);
+
+  drawWatchScreen();
+}
+
+if (simDistSlider) {
+  simDistSlider.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    setDistanceToStart(val);
   });
+}
+
+if (btnDistAtStart) {
+  btnDistAtStart.addEventListener('click', () => setDistanceToStart(0));
+}
+
+if (btnDistNear) {
+  btnDistNear.addEventListener('click', () => setDistanceToStart(450));
+}
+
+if (btnDistFar) {
+  btnDistFar.addEventListener('click', () => setDistanceToStart(3000));
+}
+
+if (btnTestFarAway) {
+  btnTestFarAway.addEventListener('click', () => setDistanceToStart(3000));
 }
 
 function simAnimationLoop(now) {
@@ -682,9 +759,7 @@ function advanceRunner(distanceM) {
   if (simState.deviateMeters > 0) {
     const rightAngle = simState.renderHeadingRad + Math.PI / 2;
     const dLat = (simState.deviateMeters * Math.cos(rightAngle)) / 111132.9;
-    const dLon =
-      (simState.deviateMeters * Math.sin(rightAngle)) /
-      (111319.5 * Math.cos((baseLat * Math.PI) / 180));
+    const dLon = (simState.deviateMeters * Math.sin(rightAngle)) / (111319.5 * Math.cos((baseLat * Math.PI) / 180));
     simState.currLat = baseLat + dLat;
     simState.currLon = baseLon + dLon;
   } else {
@@ -692,11 +767,7 @@ function advanceRunner(distanceM) {
     simState.currLon = baseLon;
   }
 
-  const currDist =
-    (simState.cumDistances && simState.cumDistances[simState.segIdx]
-      ? simState.cumDistances[simState.segIdx]
-      : 0) +
-    simState.segProgress * segLen;
+  const currDist = (simState.cumDistances && simState.cumDistances[simState.segIdx] ? simState.cumDistances[simState.segIdx] : 0) + simState.segProgress * segLen;
   updateTimelineUI(currDist);
 
   recordTrailAndSparks();
@@ -705,8 +776,7 @@ function advanceRunner(distanceM) {
 function recordTrailAndSparks() {
   const baseLat = simState.currLat;
   const dLatM = (simState.currLat - simState.lastTrailLat) * 111132.9;
-  const dLonM =
-    (simState.currLon - simState.lastTrailLon) * 111319.5 * Math.cos((baseLat * Math.PI) / 180);
+  const dLonM = (simState.currLon - simState.lastTrailLon) * 111319.5 * Math.cos((baseLat * Math.PI) / 180);
 
   if (dLatM * dLatM + dLonM * dLonM > 25.0 || simTrail.length === 0) {
     simTrail.push({ lat: simState.currLat, lon: simState.currLon });
@@ -716,8 +786,7 @@ function recordTrailAndSparks() {
   }
 
   const dSparkLatM = (simState.currLat - simState.lastSparkLat) * 111132.9;
-  const dSparkLonM =
-    (simState.currLon - simState.lastSparkLon) * 111319.5 * Math.cos((baseLat * Math.PI) / 180);
+  const dSparkLonM = (simState.currLon - simState.lastSparkLon) * 111319.5 * Math.cos((baseLat * Math.PI) / 180);
 
   if (dSparkLatM * dSparkLatM + dSparkLonM * dSparkLonM >= 400.0) {
     simSparks.push({ lat: simState.currLat, lon: simState.currLon });
@@ -727,36 +796,40 @@ function recordTrailAndSparks() {
   }
 }
 
+function formatDistanceWeb(meters) {
+  if (meters >= 1000) {
+    return (meters / 1000).toFixed(1) + ' km';
+  }
+  return Math.round(meters) + ' m';
+}
+
+
 function renderRoutePreviewWeb(dc, cx, cy, w, h) {
   if (!simRoute || simRoute.length < 2) return;
 
-  const totalDistStr =
-    simState.totalRouteDist >= 1000
-      ? (simState.totalRouteDist / 1000).toFixed(1) + ' km'
-      : Math.round(simState.totalRouteDist) + ' m';
+  const ringR = Math.min(cx, cy) - 10;
 
   dc.save();
-  dc.fillStyle = '#00e5ff';
-  dc.font = 'bold 15px -apple-system, sans-serif';
-  dc.textAlign = 'center';
-  dc.fillText(`GPS ART (${totalDistStr})`, cx, 36);
 
-  const wStr =
-    simState.boxWidthM >= 1000
-      ? 'W ' + (simState.boxWidthM / 1000).toFixed(1) + 'k'
-      : 'W ' + Math.round(simState.boxWidthM) + 'm';
-  const hStr =
-    simState.boxHeightM >= 1000
-      ? 'H ' + (simState.boxHeightM / 1000).toFixed(1) + 'k'
-      : 'H ' + Math.round(simState.boxHeightM) + 'm';
+  // 1. Outer Compass Ring & 12 o'clock Watch Heading Index Tick
+  dc.strokeStyle = '#1e293b';
+  dc.lineWidth = 1;
+  dc.beginPath();
+  dc.arc(cx, cy, ringR, 0, Math.PI * 2);
+  dc.stroke();
 
-  dc.fillStyle = '#94a3b8';
-  dc.font = '12px -apple-system, sans-serif';
-  dc.fillText(`${wStr}   ${hStr}`, cx, 62);
+  // Top 12 o'clock Reference Mark (Watch Heading Axis)
+  dc.strokeStyle = '#ffffff';
+  dc.lineWidth = 2;
+  dc.beginPath();
+  dc.moveTo(cx, cy - ringR - 3);
+  dc.lineTo(cx, cy - ringR + 3);
+  dc.stroke();
 
-  const thumbCy = Math.round(h * 0.42);
-  const maxThumbW = w * 0.58;
-  const maxThumbH = h * 0.35;
+  // 2. Compute route thumbnail placement & scaling (Spacious central display without top header)
+  const thumbCy = Math.round(h * 0.44);
+  const maxThumbW = w * 0.56;
+  const maxThumbH = h * 0.36;
 
   const centerLat = simState.centerLat || simRoute[0].lat;
   const centerLon = simState.centerLon || simRoute[0].lon;
@@ -793,9 +866,10 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
   const endSy = thumbCy - (pEnd.lat - centerLat) * 111132.9 * thumbScale;
   const isLoop = Math.hypot(startSx - endSx, startSy - endSy) < 6;
 
+  // Route Start landmark anchor (Clean glowing beacon without overlapping text)
   dc.fillStyle = 'rgba(163, 230, 53, 0.4)';
   dc.beginPath();
-  dc.arc(startSx, startSy, 9, 0, Math.PI * 2);
+  dc.arc(startSx, startSy, 8, 0, Math.PI * 2);
   dc.fill();
 
   dc.fillStyle = '#a3e635';
@@ -820,6 +894,7 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
     dc.fill();
   }
 
+  // 4. Adaptive Visual Scale Bar (|── 500 m ──|)
   const pixelsPerMeter = thumbScale;
   if (pixelsPerMeter > 0.00001) {
     const targetSteps = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
@@ -836,68 +911,207 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
 
     const barW = Math.max(24, Math.min(120, Math.round(bestStep * pixelsPerMeter)));
     const barX = cx - barW / 2;
-    const barY = Math.round(h * 0.72);
+    const barY = Math.round(h * 0.7);
 
     const scaleLabel = bestStep >= 1000 ? `${bestStep / 1000} km` : `${bestStep} m`;
-    dc.fillStyle = '#f8fafc';
+    dc.fillStyle = '#94a3b8';
     dc.font = 'bold 11px -apple-system, sans-serif';
     dc.textAlign = 'center';
     dc.fillText(scaleLabel, cx, barY - 9);
 
-    dc.strokeStyle = '#ffffff';
+    dc.strokeStyle = '#94a3b8';
     dc.lineWidth = 2;
     dc.beginPath();
     dc.moveTo(barX, barY);
     dc.lineTo(barX + barW, barY);
-    dc.moveTo(barX, barY - 4);
-    dc.lineTo(barX, barY + 4);
-    dc.moveTo(barX + barW, barY - 4);
-    dc.lineTo(barX + barW, barY + 4);
+    dc.moveTo(barX, barY - 3);
+    dc.lineTo(barX, barY + 3);
+    dc.moveTo(barX + barW, barY - 3);
+    dc.lineTo(barX + barW, barY + 3);
     dc.stroke();
   }
 
-  const pillW = 216;
-  const pillH = 30;
-  const pillX = cx - pillW / 2;
-  const pillY = Math.round(h * 0.85);
+  // 4b. Total Route Distance inside Bioluminescent Pill Capsule
+  const totalDistStr = formatDistanceWeb(simState.totalRouteDist);
+  const totalY = Math.round(h * 0.80);
+  dc.font = 'bold 15px -apple-system, sans-serif';
+  const textW = dc.measureText(totalDistStr).width;
+  const pillW = Math.round(textW + 24);
+  const pillH = 26;
+  const pillX = Math.round(cx - pillW / 2);
+  const pillY = Math.round(totalY - pillH / 2);
+  const pillR = Math.round(pillH / 2);
 
-  dc.fillStyle = 'rgba(15, 23, 42, 0.9)';
-  roundRect(dc, pillX, pillY, pillW, pillH, 8);
-  dc.fill();
-
-  dc.strokeStyle = '#38bdf8';
-  dc.lineWidth = 1.5;
-  roundRect(dc, pillX, pillY, pillW, pillH, 8);
-  dc.stroke();
-
-  const relAngle = simState.bearingToStart - simState.renderHeadingRad;
-  const arrowCx = pillX + 22;
-  const arrowCy = pillY + 16;
-  const adx = Math.sin(relAngle) * 7.5;
-  const ady = -Math.cos(relAngle) * 7.5;
-
-  dc.strokeStyle = '#a3e635';
-  dc.lineWidth = 2;
+  dc.save();
   dc.beginPath();
-  dc.moveTo(arrowCx - adx * 0.5, arrowCy - ady * 0.5);
-  dc.lineTo(arrowCx + adx, arrowCy + ady);
-  const sideAngle1 = relAngle + 2.5;
-  const sideAngle2 = relAngle - 2.5;
-  dc.moveTo(arrowCx + adx, arrowCy + ady);
-  dc.lineTo(arrowCx + adx + Math.sin(sideAngle1) * 4.5, arrowCy + ady - Math.cos(sideAngle1) * 4.5);
-  dc.moveTo(arrowCx + adx, arrowCy + ady);
-  dc.lineTo(arrowCx + adx + Math.sin(sideAngle2) * 4.5, arrowCy + ady - Math.cos(sideAngle2) * 4.5);
+  if (dc.roundRect) {
+    dc.roundRect(pillX, pillY, pillW, pillH, pillR);
+  } else {
+    dc.arc(pillX + pillR, pillY + pillR, pillR, Math.PI / 2, (3 * Math.PI) / 2);
+    dc.arc(pillX + pillW - pillR, pillY + pillR, pillR, -Math.PI / 2, Math.PI / 2);
+    dc.closePath();
+  }
+  dc.fillStyle = 'rgba(0, 229, 255, 0.08)';
+  dc.fill();
+  dc.strokeStyle = '#00e5ff';
+  dc.lineWidth = 1;
   dc.stroke();
 
-  const startDistStr =
-    simState.distToStart >= 1000
-      ? (simState.distToStart / 1000).toFixed(1) + ' km'
-      : Math.round(simState.distToStart) + ' m';
+  dc.fillStyle = '#00e5ff';
+  dc.textAlign = 'center';
+  dc.textBaseline = 'middle';
+  dc.fillText(totalDistStr, cx, totalY);
+  dc.restore();
 
-  dc.fillStyle = '#ffffff';
-  dc.font = 'bold 12px -apple-system, sans-serif';
-  dc.textAlign = 'left';
-  dc.fillText(`TO START: ${startDistStr}`, pillX + 40, pillY + 19);
+  // 5. Outer Ring Indicators & Navigation Guidance
+  if (simState.currLat && simState.currLon) {
+    const userDx = (simState.currLon - centerLon) * 111319.5 * cosLat * thumbScale;
+    const userDy = -(simState.currLat - centerLat) * 111132.9 * thumbScale;
+    const userSx = cx + userDx;
+    const userSy = thumbCy + userDy;
+
+    const udxFromCenter = userSx - cx;
+    const udyFromCenter = userSy - cy;
+    const uDist = Math.hypot(udxFromCenter, udyFromCenter);
+
+    const maxInnerR = ringR - 14;
+    const isOutOfRange = uDist > maxInnerR;
+
+    // =================================================================
+    // User Location: Only turns into a directional navigation arrow when inside map bounds
+    // Rotates dynamically based on movement track (if moving) or watch compass (if stationary)
+    // =================================================================
+    if (!isOutOfRange) {
+      const uPlotX = userSx;
+      const uPlotY = userSy;
+
+      // Heading in screen space (Preview map is North-up)
+      const uHeading = simState.renderHeadingRad || 0.0;
+      const hSin = Math.sin(uHeading);
+      const hCos = Math.cos(uHeading);
+      const hdx = hSin;
+      const hdy = -hCos;
+      const hpx = -hdy;
+      const hpy = hdx;
+
+      const aTipX = uPlotX + hdx * 8;
+      const aTipY = uPlotY + hdy * 8;
+      const aW1X = uPlotX - hdx * 6 + hpx * 5;
+      const aW1Y = uPlotY - hdy * 6 + hpy * 5;
+      const aW2X = uPlotX - hdx * 6 - hpx * 5;
+      const aW2Y = uPlotY - hdy * 6 - hpy * 5;
+      const aNotchX = uPlotX - hdx * 2;
+      const aNotchY = uPlotY - hdy * 2;
+
+      // Bioluminescent Cyan navigation arrow with white outline
+      dc.fillStyle = '#00e5ff';
+      dc.beginPath();
+      dc.moveTo(aTipX, aTipY);
+      dc.lineTo(aW1X, aW1Y);
+      dc.lineTo(aNotchX, aNotchY);
+      dc.lineTo(aW2X, aW2Y);
+      dc.closePath();
+      dc.fill();
+
+      dc.strokeStyle = '#ffffff';
+      dc.lineWidth = 1;
+      dc.beginPath();
+      dc.moveTo(aTipX, aTipY);
+      dc.lineTo(aW1X, aW1Y);
+      dc.lineTo(aNotchX, aNotchY);
+      dc.lineTo(aW2X, aW2Y);
+      dc.closePath();
+      dc.stroke();
+
+      // Dotted guidance line from user position towards route start point
+      const gdx = startSx - uPlotX;
+      const gdy = startSy - uPlotY;
+      const gDist = Math.hypot(gdx, gdy);
+      if (gDist > 14) {
+        dc.save();
+        dc.strokeStyle = 'rgba(163, 230, 53, 0.45)';
+        dc.lineWidth = 1.5;
+        dc.setLineDash([4, 4]);
+        dc.beginPath();
+        dc.moveTo(uPlotX, uPlotY);
+        dc.lineTo(startSx, startSy);
+        dc.stroke();
+        dc.restore();
+      }
+    }
+
+    // =================================================================
+    // Indicator: 我該前往哪個方向 (Target Direction to Start)
+    // Dynamically rotates with watch heading until pointing straight up (12 o'clock)
+    // =================================================================
+    const currentHeading = simState.renderHeadingRad || 0.0;
+    let targetAngle = simState.bearingToStart - currentHeading;
+    while (targetAngle > Math.PI) targetAngle -= 2 * Math.PI;
+    while (targetAngle < -Math.PI) targetAngle += 2 * Math.PI;
+
+    const tSin = Math.sin(targetAngle);
+    const tCos = Math.cos(targetAngle);
+    const tx = cx + tSin * ringR;
+    const ty = cy - tCos * ringR;
+    const trx = tSin;
+    const tryVec = -tCos;
+    const ttx = -tryVec;
+    const tty = trx;
+
+    const tTipX = tx + trx * 7;
+    const tTipY = ty + tryVec * 7;
+    const tw1X = tx - trx * 6 + ttx * 6;
+    const tw1Y = ty - tryVec * 6 + tty * 6;
+    const tw2X = tx - trx * 6 - ttx * 6;
+    const tw2Y = ty - tryVec * 6 - tty * 6;
+    const tNotchX = tx - trx * 2;
+    const tNotchY = ty - tryVec * 2;
+
+    dc.fillStyle = '#a3e635';
+    dc.beginPath();
+    dc.moveTo(tTipX, tTipY);
+    dc.lineTo(tw1X, tw1Y);
+    dc.lineTo(tNotchX, tNotchY);
+    dc.lineTo(tw2X, tw2Y);
+    dc.closePath();
+    dc.fill();
+
+    dc.strokeStyle = '#ffffff';
+    dc.lineWidth = 1;
+    dc.beginPath();
+    dc.moveTo(tTipX, tTipY);
+    dc.lineTo(tw1X, tw1Y);
+    dc.lineTo(tNotchX, tNotchY);
+    dc.lineTo(tw2X, tw2Y);
+    dc.closePath();
+    dc.stroke();
+
+    // Label for target direction arrow: "START" with distance to start directly beneath it (Prominent larger font)
+    const startDistStr = formatDistanceWeb(simState.distToStart);
+    const lblDist = ringR * 0.20;
+    const lblBaseX = tx - trx * lblDist;
+    const lblBaseY = ty - tryVec * lblDist;
+
+    dc.textAlign = 'center';
+    dc.textBaseline = 'middle';
+
+    // Line 1: START (lime green)
+    dc.fillStyle = '#a3e635';
+    dc.font = 'bold 11px -apple-system, sans-serif';
+    dc.fillText('START', lblBaseX, lblBaseY - 8);
+
+    // Line 2: Distance directly underneath START (white, prominent larger font)
+    dc.fillStyle = '#ffffff';
+    dc.font = 'bold 15px -apple-system, sans-serif';
+    dc.fillText(startDistStr, lblBaseX, lblBaseY + 7);
+  } else {
+    // Waiting for GPS message
+    dc.fillStyle = '#eab308';
+    dc.font = 'bold 12px -apple-system, sans-serif';
+    dc.textAlign = 'center';
+    dc.textBaseline = 'middle';
+    dc.fillText('WAITING FOR GPS...', cx, Math.round(h * 0.85));
+  }
 
   dc.restore();
 }
@@ -1005,15 +1219,9 @@ function drawWatchScreen() {
   const isFarAway = !simState.isGuideToStart && minDist > 250.0;
   if (simState.previewMode || isFarAway) {
     renderRoutePreviewWeb(dc, cx, cy, w, h);
-    if (readoutHeading)
-      readoutHeading.innerText = `${Math.round(((heading * 180) / Math.PI + 360) % 360)}°`;
-    if (readoutCtd)
-      readoutCtd.innerText =
-        distToStart >= 1000
-          ? `${(distToStart / 1000).toFixed(1)} km`
-          : `${Math.round(distToStart)} m`;
-    if (readoutStatus)
-      readoutStatus.innerHTML = `<span style="color: var(--accent-cyan);">Map Preview</span>`;
+    if (readoutHeading) readoutHeading.innerText = `${Math.round(((heading * 180) / Math.PI + 360) % 360)}°`;
+    if (readoutCtd) readoutCtd.innerText = distToStart >= 1000 ? `${(distToStart / 1000).toFixed(1)} km` : `${Math.round(distToStart)} m`;
+    if (readoutStatus) readoutStatus.innerHTML = `<span style="color: var(--accent-cyan);">Map Preview</span>`;
     return;
   }
 
@@ -1090,11 +1298,7 @@ function drawWatchScreen() {
     const pA = simRoute[curSegIdx];
     const pB = simRoute[curSegIdx + 1];
     const curSegLen = pA && pB ? calcDistanceMeters(pA, pB) : 0;
-    const runnerDist =
-      (simState.cumDistances && simState.cumDistances[curSegIdx]
-        ? simState.cumDistances[curSegIdx]
-        : 0) +
-      simState.segProgress * curSegLen;
+    const runnerDist = (simState.cumDistances && simState.cumDistances[curSegIdx] ? simState.cumDistances[curSegIdx] : 0) + simState.segProgress * curSegLen;
 
     for (let k = 0; k < simChevrons.length; k++) {
       const ch = simChevrons[k];

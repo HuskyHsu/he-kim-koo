@@ -106,6 +106,7 @@ class RouteDataField extends WatchUi.DataField {
     private var mCurrLatMicro as Number = 0;
     private var mCurrLonMicro as Number = 0;
     private var mCosLat as Float = 1.0f;
+    private var mCurrSpeed as Float = 0.0f;
     private var mMetersPerLon as Float = METERS_PER_MICRO_LON;
 
     // Heading smoothing filter (prevents snapping during sharp turns)
@@ -460,6 +461,7 @@ class RouteDataField extends WatchUi.DataField {
 
         // 2. Angular exponential smoothing (handles [-PI, +PI] wrap-around)
         mRenderHeading += wrapAngleRad(mTargetHeading - mRenderHeading) * 0.40f;
+        mRenderHeading = wrapAngleRad(mRenderHeading);
 
         // 3. Verify & update GPS location
         if (!updateGpsLocation(info)) {
@@ -504,6 +506,7 @@ class RouteDataField extends WatchUi.DataField {
         }
 
         var speed = (info has :currentSpeed) ? info.currentSpeed : null;
+        mCurrSpeed = (speed != null) ? speed.toFloat() : 0.0f;
         if (speed != null && speed < 0.35f && stepDistSq < 4.0f && !mPreviewMode) {
             return;
         }
@@ -1105,32 +1108,34 @@ class RouteDataField extends WatchUi.DataField {
     // =========================================================================
     // Full Route Preview (Waiting for GPS / Far Away Mode)
     // =========================================================================
-    private function formatDistance(meters as Float, kmSuffix as String, mSuffix as String) as String {
+    private function formatDistance(meters as Float) as String {
         if (meters >= 1000.0f) {
-            return (meters / 1000.0f).format("%.1f") + kmSuffix;
+            return (meters / 1000.0f).format("%.1f") + " km";
         }
-        return meters.toNumber() + mSuffix;
+        return meters.toNumber() + " m";
     }
+
 
     private function renderRoutePreview(dc as Graphics.Dc, cx as Number, cy as Number, w as Number, h as Number) as Void {
         if (mPointCount < 2) {
             return;
         }
 
-        // 1. Top Header: Title, Total Route Length, and Bounding Box (Width x Height)
-        dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
-        var totalDistStr = formatDistance(mTotalRouteMeters, " km", " m");
-        dc.drawText(cx, 36, Graphics.FONT_XTINY, "GPS ART (" + totalDistStr + ")", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        var ringR = (cx < cy ? cx : cy) - 10;
 
-        var wStr = "W " + formatDistance(mBoxWidthMeters, "k", "m");
-        var hStr = "H " + formatDistance(mBoxHeightMeters, "k", "m");
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, 62, Graphics.FONT_XTINY, wStr + "   " + hStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // 1. Outer Compass Ring & 12 o'clock Watch Heading Index Tick
+        dc.setColor(0x1E293B, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(1);
+        dc.drawCircle(cx, cy, ringR);
 
-        // 2. Compute route thumbnail placement & scaling
-        var thumbCy = (h * 0.42f).toNumber();
-        var maxThumbW = w * 0.58f;
-        var maxThumbH = h * 0.35f;
+        // Top 12 o'clock Reference Mark (Watch Heading Axis)
+        dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(cx, cy - ringR - 3, cx, cy - ringR + 3);
+
+        // 2. Compute route thumbnail placement & scaling (Spacious central display without top header)
+        var thumbCy = (h * 0.44f).toNumber();
+        var maxThumbW = w * 0.56f;
+        var maxThumbH = h * 0.36f;
 
         var dLonMetric = (mMaxLon - mMinLon).toFloat() * mRouteCosLat;
         var dLatMetric = (mMaxLat - mMinLat).toFloat();
@@ -1171,6 +1176,9 @@ class RouteDataField extends WatchUi.DataField {
         var endSy = lastSy;
         var isLoop = ((startSx - endSx) * (startSx - endSx) + (startSy - endSy) * (startSy - endSy)) < 36;
 
+        // Route Start landmark anchor (Clean glowing beacon without overlapping text)
+        dc.setColor(COLOR_LIME_FAINT, COLOR_LIME_FAINT);
+        dc.fillCircle(startSx, startSy, 8);
         dc.setColor(COLOR_LIME, COLOR_LIME);
         dc.fillCircle(startSx, startSy, 5);
         dc.setColor(COLOR_WHITE, COLOR_WHITE);
@@ -1183,7 +1191,7 @@ class RouteDataField extends WatchUi.DataField {
             dc.fillCircle(endSx, endSy, 2);
         }
 
-        // 3. Adaptive Visual Scale Bar (|── 500m ──|)
+        // 4. Adaptive Visual Scale Bar (|── 500 m ──|)
         var pixelsPerMeter = thumbScale / METERS_PER_MICRO_LON;
         if (pixelsPerMeter > 0.00001f) {
             var targetSteps = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
@@ -1202,54 +1210,181 @@ class RouteDataField extends WatchUi.DataField {
             if (barW < 30) { barW = 30; }
             if (barW > 110) { barW = 110; }
             var barX = cx - (barW / 2);
-            var barY = (h * 0.72f).toNumber();
+            var barY = (h * 0.70f).toNumber();
 
             var scaleLabel = (bestStep >= 1000) ? (bestStep / 1000) + " km" : bestStep + " m";
-            dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, barY - 14, Graphics.FONT_XTINY, scaleLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, barY - 11, Graphics.FONT_XTINY, scaleLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
             dc.setPenWidth(2);
             dc.drawLine(barX, barY, barX + barW, barY);
-            dc.drawLine(barX, barY - 4, barX, barY + 4);
-            dc.drawLine(barX + barW, barY - 4, barX + barW, barY + 4);
+            dc.drawLine(barX, barY - 3, barX, barY + 3);
+            dc.drawLine(barX + barW, barY - 3, barX + barW, barY + 3);
         }
 
-        // 4. Bottom Footer: Guidance to Start or Waiting for GPS
-        var pillW = 216;
-        var pillH = 30;
+        // 4b. Total Route Distance inside Bioluminescent Pill Capsule
+        var totalDistStr = formatDistance(mTotalRouteMeters);
+        var totalY = (h * 0.80f).toNumber();
+        var fontH = dc.getFontHeight(Graphics.FONT_TINY);
+        var textW = dc.getTextWidthInPixels(totalDistStr, Graphics.FONT_TINY);
+        var pillW = textW + 22;
+        var pillH = (fontH * 0.90f).toNumber();
+        if (pillH < 20) { pillH = 20; }
         var pillX = cx - (pillW / 2);
-        var pillY = (h * 0.85f).toNumber();
+        var pillY = totalY - (pillH / 2);
+        var pillR = (pillH / 2).toNumber();
 
-        if (!mHasGps) {
-            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_TRANSPARENT);
-            var gpsMsg = mHasEverHadGps ? "GPS LOST - SEARCHING..." : "WAITING FOR GPS...";
-            dc.drawText(cx, pillY + (pillH / 2), Graphics.FONT_XTINY, gpsMsg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        } else {
-            dc.setColor(COLOR_BADGE_BG, COLOR_BADGE_BG);
-            dc.fillRoundedRectangle(pillX, pillY, pillW, pillH, 8);
-            dc.setColor(COLOR_BADGE_BORDER, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(1);
-            dc.drawRoundedRectangle(pillX, pillY, pillW, pillH, 8);
+        // Capsule background: Deep midnight cyan/slate
+        dc.setColor(0x041C24, 0x041C24);
+        dc.fillRoundedRectangle(pillX, pillY, pillW, pillH, pillR);
 
-            var relAngle = mBearingToStart - mRenderHeading;
-            var arrowCx = pillX + 22;
-            var arrowCy = pillY + (pillH / 2);
-            var adx = Math.sin(relAngle).toFloat() * 7.0f;
-            var ady = -Math.cos(relAngle).toFloat() * 7.0f;
-            var tipX = (arrowCx + adx).toNumber();
-            var tipY = (arrowCy + ady).toNumber();
+        // Capsule border: Bioluminescent Cyan 1px outline
+        dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(1);
+        dc.drawRoundedRectangle(pillX, pillY, pillW, pillH, pillR);
 
-            dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(2);
-            dc.drawLine((arrowCx - adx * 0.5f).toNumber(), (arrowCy - ady * 0.5f).toNumber(), tipX, tipY);
-            var sideAngle1 = relAngle + 2.5f;
-            var sideAngle2 = relAngle - 2.5f;
-            dc.drawLine(tipX, tipY, (arrowCx + adx + Math.sin(sideAngle1).toFloat() * 4.0f).toNumber(), (arrowCy + ady - Math.cos(sideAngle1).toFloat() * 4.0f).toNumber());
-            dc.drawLine(tipX, tipY, (arrowCx + adx + Math.sin(sideAngle2).toFloat() * 4.0f).toNumber(), (arrowCy + ady - Math.cos(sideAngle2).toFloat() * 4.0f).toNumber());
+        // Capsule text: Electric Cyan
+        dc.drawText(cx, totalY, Graphics.FONT_TINY, totalDistStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
-            var startDistStr = formatDistance(mDistToStart.toFloat(), " km", " m");
+        // 5. Outer Ring Indicators & Navigation Guidance
+        if (mHasGps && mCurrLatMicro != 0) {
+            var userDx = (mCurrLonMicro - mCenterLon).toFloat() * lonScale;
+            var userDy = -(mCurrLatMicro - mCenterLat).toFloat() * thumbScale;
+            var userSx = cx + userDx;
+            var userSy = thumbCy + userDy;
+
+            var udxFromCenter = userSx - cx;
+            var udyFromCenter = userSy - cy;
+            var uDist = Math.sqrt(udxFromCenter * udxFromCenter + udyFromCenter * udyFromCenter).toFloat();
+
+            var maxInnerR = (ringR - 14).toFloat();
+            var isOutOfRange = (uDist > maxInnerR);
+
+            // =================================================================
+            // User Location: Only turns into a directional navigation arrow when inside map bounds
+            // Rotates dynamically based on movement track (if moving) or watch compass (if stationary)
+            // =================================================================
+            if (!isOutOfRange) {
+                var uPlotX = userSx.toNumber();
+                var uPlotY = userSy.toNumber();
+
+                // Heading in screen space (Preview map is North-up)
+                var uHeading = mRenderHeading;
+                var hSin = Math.sin(uHeading).toFloat();
+                var hCos = Math.cos(uHeading).toFloat();
+                var hdx = hSin;
+                var hdy = -hCos;
+                var hpx = -hdy;
+                var hpy = hdx;
+
+                var aTipX = (uPlotX + hdx * 8.0f).toNumber();
+                var aTipY = (uPlotY + hdy * 8.0f).toNumber();
+                var aW1X = (uPlotX - hdx * 6.0f + hpx * 5.0f).toNumber();
+                var aW1Y = (uPlotY - hdy * 6.0f + hpy * 5.0f).toNumber();
+                var aW2X = (uPlotX - hdx * 6.0f - hpx * 5.0f).toNumber();
+                var aW2Y = (uPlotY - hdy * 6.0f - hpy * 5.0f).toNumber();
+                var aNotchX = (uPlotX - hdx * 2.0f).toNumber();
+                var aNotchY = (uPlotY - hdy * 2.0f).toNumber();
+
+                // Bioluminescent Cyan navigation arrow with white outline
+                dc.setColor(COLOR_CYAN, COLOR_CYAN);
+                dc.fillPolygon([
+                    [aTipX, aTipY],
+                    [aW1X, aW1Y],
+                    [aNotchX, aNotchY],
+                    [aW2X, aW2Y]
+                ] as Array<[Numeric, Numeric]>);
+
+                dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+                dc.setPenWidth(1);
+                dc.drawLine(aTipX, aTipY, aW1X, aW1Y);
+                dc.drawLine(aW1X, aW1Y, aNotchX, aNotchY);
+                dc.drawLine(aNotchX, aNotchY, aW2X, aW2Y);
+                dc.drawLine(aW2X, aW2Y, aTipX, aTipY);
+
+                // Dotted guidance line from user position towards route start point
+                var gdx = startSx - uPlotX;
+                var gdy = startSy - uPlotY;
+                var gDist = Math.sqrt(gdx * gdx + gdy * gdy).toFloat();
+                if (gDist > 14.0f) {
+                    dc.setColor(COLOR_LIME_FAINT, Graphics.COLOR_TRANSPARENT);
+                    dc.setPenWidth(1);
+                    var dashStep = 7.0f;
+                    var dashCount = (gDist / dashStep).toNumber();
+                    for (var d = 0; d < dashCount; d += 2) {
+                        var t1 = (d * dashStep) / gDist;
+                        var t2 = ((d + 1) * dashStep) / gDist;
+                        if (t2 > 1.0f) { t2 = 1.0f; }
+                        dc.drawLine(
+                            (uPlotX + gdx * t1).toNumber(),
+                            (uPlotY + gdy * t1).toNumber(),
+                            (uPlotX + gdx * t2).toNumber(),
+                            (uPlotY + gdy * t2).toNumber()
+                        );
+                    }
+                }
+            }
+
+            // =================================================================
+            // Indicator: 我該前往哪個方向 (Target Direction to Start)
+            // Dynamically rotates with watch heading until pointing straight up (12 o'clock)
+            // =================================================================
+            var targetAngle = wrapAngleRad(mBearingToStart - mRenderHeading);
+            var tSin = Math.sin(targetAngle).toFloat();
+            var tCos = Math.cos(targetAngle).toFloat();
+            var tx = cx + tSin * ringR;
+            var ty = cy - tCos * ringR;
+            var trx = tSin;
+            var try = -tCos;
+            var ttx = -try;
+            var tty = trx;
+
+            var tTipX = (tx + trx * 7).toNumber();
+            var tTipY = (ty + try * 7).toNumber();
+            var tw1X = (tx - trx * 6 + ttx * 6).toNumber();
+            var tw1Y = (ty - try * 6 + tty * 6).toNumber();
+            var tw2X = (tx - trx * 6 - ttx * 6).toNumber();
+            var tw2Y = (ty - try * 6 - tty * 6).toNumber();
+            var tNotchX = (tx - trx * 2).toNumber();
+            var tNotchY = (ty - try * 2).toNumber();
+
+            dc.setColor(COLOR_LIME, COLOR_LIME);
+            dc.fillPolygon([
+                [tTipX, tTipY],
+                [tw1X, tw1Y],
+                [tNotchX, tNotchY],
+                [tw2X, tw2Y]
+            ] as Array<[Numeric, Numeric]>);
             dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(pillX + 42, pillY + (pillH / 2), Graphics.FONT_XTINY, "TO START: " + startDistStr, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setPenWidth(1);
+            dc.drawLine(tTipX, tTipY, tw1X, tw1Y);
+            dc.drawLine(tw1X, tw1Y, tNotchX, tNotchY);
+            dc.drawLine(tNotchX, tNotchY, tw2X, tw2Y);
+            dc.drawLine(tw2X, tw2Y, tTipX, tTipY);
+
+            // Label for target direction arrow: "START" with distance to start directly beneath it (Prominent larger font)
+            var startDistStr = formatDistance(mDistToStart.toFloat());
+            var fontH1 = dc.getFontHeight(Graphics.FONT_XTINY);
+            var fontH2 = dc.getFontHeight(Graphics.FONT_TINY);
+            var lineOffset1 = (fontH1 * 0.45f).toNumber();
+            var lineOffset2 = (fontH2 * 0.45f).toNumber();
+            var lblDist = (ringR * 0.20f);
+
+            var lblBaseX = (tx - trx * lblDist).toNumber();
+            var lblBaseY = (ty - try * lblDist).toNumber();
+
+            // Line 1: START (lime green)
+            dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(lblBaseX, lblBaseY - lineOffset1, Graphics.FONT_XTINY, "START", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+            // Line 2: Distance directly underneath START (white, prominent FONT_TINY)
+            dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(lblBaseX, lblBaseY + lineOffset2, Graphics.FONT_TINY, startDistStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        } else {
+            // Waiting / Searching GPS Message
+            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_TRANSPARENT);
+            var gpsMsg = mHasEverHadGps ? "SEARCHING GPS..." : "WAITING FOR GPS...";
+            dc.drawText(cx, (h * 0.85f).toNumber(), Graphics.FONT_XTINY, gpsMsg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
 }

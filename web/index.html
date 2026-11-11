@@ -282,10 +282,24 @@
                   <span class="sim-row-value" id="simHeadingVal">0°</span>
                 </div>
 
+                <!-- Distance to Start Dynamic Slider -->
+                <div class="sim-row">
+                  <label for="simDistSlider">Distance to Start</label>
+                  <input type="range" id="simDistSlider" min="0" max="3000" value="0" step="25" />
+                  <span class="sim-row-value" id="simDistVal">0 m</span>
+                </div>
+
+                <!-- 3 Distance Quick Presets -->
+                <div class="scenario-buttons" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 6px;">
+                  <button id="btnDistAtStart" type="button" class="btn-active">0m 起點導航</button>
+                  <button id="btnDistNear" type="button">450m 進入圖案</button>
+                  <button id="btnDistFar" type="button">3.0km 遠程全覽</button>
+                </div>
+
                 <!-- Scenario Triggers -->
-                <div class="scenario-buttons">
+                <div class="scenario-buttons" style="margin-top: 6px;">
                   <button id="btnSimDeviate" class="btn-danger">Off-Course Test (+45m)</button>
-                  <button id="btnTestFarAway">Far Away Preview</button>
+                  <button id="btnTestFarAway" style="display: none;">Far Away Preview</button>
                 </div>
               </div>
             </div>
