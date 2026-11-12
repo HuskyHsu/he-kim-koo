@@ -127,6 +127,8 @@ function pointToSegmentDistanceMeters(p, a, b) {
 
 /**
  * Encodes GPS coordinates into standard Google Polyline format.
+ * Includes Garmin-Safe Encoding: Automatically nudges delta by ~1 meter if it
+ * would produce a backslash ('\'), preventing Garmin Connect Mobile JSON save errors.
  */
 function encodeGooglePolyline(points) {
   let output = '';
@@ -134,17 +136,38 @@ function encodeGooglePolyline(points) {
   let prevLon = 0;
 
   for (let i = 0; i < points.length; i++) {
-    const lat = Math.round(points[i].lat * 1e5);
-    const lon = Math.round(points[i].lon * 1e5);
+    const targetLat = Math.round(points[i].lat * 1e5);
+    const targetLon = Math.round(points[i].lon * 1e5);
 
-    output += encodeSigned(lat - prevLat);
-    output += encodeSigned(lon - prevLon);
+    const safeLat = encodeSignedGarminSafe(targetLat - prevLat);
+    output += safeLat.enc;
+    prevLat += safeLat.adjustedDelta;
 
-    prevLat = lat;
-    prevLon = lon;
+    const safeLon = encodeSignedGarminSafe(targetLon - prevLon);
+    output += safeLon.enc;
+    prevLon += safeLon.adjustedDelta;
   }
 
   return output;
+}
+
+function encodeSignedGarminSafe(d) {
+  const enc = encodeSigned(d);
+  if (!enc.includes('\\')) {
+    return { enc, adjustedDelta: d };
+  }
+  // Nudge by smallest delta offset that avoids backslash
+  for (let offset = 1; offset <= 32; offset++) {
+    let testEnc = encodeSigned(d + offset);
+    if (!testEnc.includes('\\')) {
+      return { enc: testEnc, adjustedDelta: d + offset };
+    }
+    testEnc = encodeSigned(d - offset);
+    if (!testEnc.includes('\\')) {
+      return { enc: testEnc, adjustedDelta: d - offset };
+    }
+  }
+  return { enc, adjustedDelta: d };
 }
 
 function encodeSigned(num) {
@@ -156,6 +179,57 @@ function encodeSigned(num) {
   }
   str += String.fromCharCode(sgnNum + 63);
   return str;
+}
+
+/**
+ * Decodes standard Google Encoded Polyline string into an array of {lat, lon} points.
+ */
+function decodeGooglePolyline(str) {
+  if (!str || typeof str !== 'string') return [];
+  let s = str.trim().replace(/^["']|["']$/g, '');
+  if (s.includes('\\\\')) {
+    s = s.replace(/\\\\/g, '\\');
+  }
+
+  const points = [];
+  let index = 0;
+  const len = s.length;
+  let lat = 0;
+  let lon = 0;
+
+  while (index < len) {
+    let b;
+    let shift = 0;
+    let result = 0;
+    do {
+      if (index >= len) break;
+      b = s.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      if (index >= len) break;
+      b = s.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const dlon = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    lon += dlon;
+
+    points.push({
+      lat: lat / 1e5,
+      lon: lon / 1e5,
+    });
+  }
+
+  return points;
 }
 
 /**
@@ -217,6 +291,7 @@ window.GpxEngine = {
   simplifySegment,
   pointToSegmentDistanceMeters,
   encodeGooglePolyline,
+  decodeGooglePolyline,
   encodeSigned,
   extractGpxSummary,
   parseGpx,
@@ -228,6 +303,7 @@ window.rdpWithAnchors = rdpWithAnchors;
 window.simplifySegment = simplifySegment;
 window.pointToSegmentDistanceMeters = pointToSegmentDistanceMeters;
 window.encodeGooglePolyline = encodeGooglePolyline;
+window.decodeGooglePolyline = decodeGooglePolyline;
 window.encodeSigned = encodeSigned;
 window.extractGpxSummary = extractGpxSummary;
 window.parseGpx = parseGpx;

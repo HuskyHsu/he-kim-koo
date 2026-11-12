@@ -192,27 +192,70 @@ if (dropzone && fileInput) {
   });
 }
 
+// Polyline string manual input handler
+const btnLoadPolyline = document.getElementById('btnLoadPolyline');
+const inputPolyline = document.getElementById('inputPolyline');
+
+if (btnLoadPolyline && inputPolyline) {
+  btnLoadPolyline.addEventListener('click', () => {
+    const val = inputPolyline.value;
+    if (processPolylineString(val, 'Shared Polyline')) {
+      inputPolyline.blur();
+    }
+  });
+
+  inputPolyline.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      btnLoadPolyline.click();
+    }
+  });
+
+  inputPolyline.addEventListener('input', () => {
+    hidePolylineError();
+  });
+}
+
 function handleFile(file) {
   const reader = new FileReader();
-  reader.onload = (e) => processGpxXml(e.target.result, file.name.replace(/\.gpx$/i, ''));
+  reader.onload = (e) => {
+    const content = (e.target.result || '').trim();
+    if (content.startsWith('<') || content.includes('<gpx')) {
+      processGpxXml(content, file.name.replace(/\.gpx$/i, ''));
+    } else {
+      // Attempt decoding as polyline string
+      if (!processPolylineString(content, file.name.replace(/\.(txt|polyline)$/i, ''))) {
+        processGpxXml(content, file.name);
+      }
+    }
+  };
   reader.readAsText(file);
 }
 
-// Core GPX Processing Function
-function processGpxXml(xmlText, routeLabel = 'Custom Route') {
-  const points = parseGpx(xmlText);
-
-  if (points.length < 2) {
-    alert('No valid GPS track points found in file (<trkpt> or <rtept>).');
-    return;
+function showPolylineError(msg) {
+  const errEl = document.getElementById('polylineError');
+  if (errEl) {
+    errEl.innerText = msg;
+    errEl.style.display = 'block';
+  } else {
+    alert(msg);
   }
+}
 
+function hidePolylineError() {
+  const errEl = document.getElementById('polylineError');
+  if (errEl) {
+    errEl.style.display = 'none';
+  }
+}
+
+// Unified route application pipeline
+function applyRouteData(points, simplified, routeLabel = 'Custom Route') {
   let totalMeters = 0;
   for (let i = 0; i < points.length - 1; i++) {
     totalMeters += calcDistanceMeters(points[i], points[i + 1]);
   }
 
-  const simplified = smartSimplifyRoute(points, 100, 130);
   const encoded = encodeGooglePolyline(simplified);
 
   cachedOrigPoints = points;
@@ -274,6 +317,53 @@ function processGpxXml(xmlText, routeLabel = 'Custom Route') {
   }
 }
 
+// Core GPX Processing Function
+function processGpxXml(xmlText, routeLabel = 'Custom Route') {
+  const points = parseGpx(xmlText);
+
+  if (points.length < 2) {
+    alert('No valid GPS track points found in file (<trkpt> or <rtept>).');
+    return;
+  }
+
+  const simplified = smartSimplifyRoute(points, 100, 130);
+  applyRouteData(points, simplified, routeLabel);
+}
+
+// Core Polyline String Processing Function
+function processPolylineString(polylineStr, routeLabel = 'Shared Polyline') {
+  if (!polylineStr || typeof polylineStr !== 'string') {
+    showPolylineError('Please enter a valid polyline string.');
+    return false;
+  }
+
+  const cleanStr = polylineStr.trim().replace(/^["']|["']$/g, '');
+  if (!cleanStr) {
+    showPolylineError('Polyline string is empty.');
+    return false;
+  }
+
+  let points;
+  try {
+    points = decodeGooglePolyline(cleanStr);
+  } catch (err) {
+    showPolylineError('Failed to decode polyline: ' + (err.message || 'Malformed format'));
+    return false;
+  }
+
+  if (!points || points.length < 2) {
+    showPolylineError('Invalid polyline: decoded less than 2 coordinate points.');
+    return false;
+  }
+
+  hidePolylineError();
+
+  // If already <= 130 points, keep exact anchors intact without re-simplifying
+  const simplified = points.length <= 130 ? points : smartSimplifyRoute(points, 100, 130);
+  applyRouteData(points, simplified, routeLabel);
+  return true;
+}
+
 function updateRouteCatalogBadge(name, pointCount, distLabel) {
   if (!routeCatalogContainer) return;
   const activeItem = routeCatalogContainer.querySelector('.route-item.active');
@@ -330,8 +420,13 @@ function initRouteCatalog() {
 
   routeCatalogContainer.innerHTML = '';
   window.HE_KIM_KOO_ROUTES.forEach((route, idx) => {
-    const stats = route.content ? extractGpxSummary(route.content) : null;
-    const badgeText = stats ? `${stats.distLabel} • ${stats.points} pts` : 'Click to calculate';
+    let badgeText = 'Click to calculate';
+    if (route.isNoRoute) {
+      badgeText = 'No Route • Free Walk';
+    } else if (route.content) {
+      const stats = extractGpxSummary(route.content);
+      badgeText = stats ? `${stats.distLabel} • ${stats.points} pts` : 'Click to calculate';
+    }
 
     const item = document.createElement('div');
     item.className = 'route-item' + (idx === 0 ? ' active' : '');
@@ -354,6 +449,11 @@ function initRouteCatalog() {
 }
 
 async function loadCatalogRoute(route) {
+  if (route.isNoRoute) {
+    loadNoRouteMode();
+    return;
+  }
+
   if (route.content) {
     processGpxXml(route.content, route.name);
     return;
@@ -369,6 +469,53 @@ async function loadCatalogRoute(route) {
     } catch (e) {
       console.warn('Failed to fetch route file:', route.file, e);
     }
+  }
+}
+
+function loadNoRouteMode() {
+  cachedOrigPoints = null;
+  cachedSimpPoints = null;
+
+  if (valOrigPoints) valOrigPoints.innerText = '0';
+  if (valSimpPoints) valSimpPoints.innerText = '0';
+  if (valDistance) valDistance.innerText = '0.00 km';
+  if (valStrLen) valStrLen.innerText = '0 chars';
+  if (outputPolyline) outputPolyline.value = '';
+
+  if (memoryBudgetLabel) {
+    memoryBudgetLabel.innerText = '0 / 130 pts (0%)';
+  }
+  if (memoryBarFill) {
+    memoryBarFill.style.width = '0%';
+    memoryBarFill.style.background = 'var(--accent-brand)';
+  }
+  if (memoryBadge) {
+    memoryBadge.innerText = 'No Route';
+    memoryBadge.style.color = 'var(--accent-cyan)';
+    memoryBadge.style.background = 'var(--accent-cyan-light)';
+    memoryBadge.style.borderColor = 'rgba(2, 132, 199, 0.25)';
+  }
+  if (exportCharCount) {
+    exportCharCount.innerText = '0 chars';
+  }
+  if (canvasPointCount) {
+    canvasPointCount.innerText = 'No Route Configured (Free Walk)';
+  }
+
+  if (trailCanvas) {
+    const ctx = trailCanvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '14px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('No preloaded route. In Free Exploration mode on watch simulator.', trailCanvas.width / 2, trailCanvas.height / 2);
+    }
+  }
+
+  if (window.initWatchSimulation) {
+    initWatchSimulation([]);
   }
 }
 
@@ -399,5 +546,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 // Expose app helpers
 window.processGpxXml = processGpxXml;
+window.processPolylineString = processPolylineString;
 window.loadCatalogRoute = loadCatalogRoute;
 

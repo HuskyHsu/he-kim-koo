@@ -56,16 +56,34 @@
           </div>
         </section>
 
-        <!-- 2. Import Custom GPX Track -->
+        <!-- 2. Import Custom Route (GPX or Polyline) -->
         <section class="section-block">
           <div class="section-heading">
-            <span>Import Custom GPX</span>
+            <span>Import Route</span>
           </div>
 
           <div class="dropzone-strip" id="dropzone">
-            <span>Click to browse or drag & drop .gpx file</span>
-            <input type="file" id="fileInput" accept=".gpx" style="display: none" />
+            <span>Click to browse or drag & drop .gpx / .txt file</span>
+            <input type="file" id="fileInput" accept=".gpx,.txt" style="display: none" />
           </div>
+
+          <div class="import-divider">
+            <span>OR PASTE POLYLINE</span>
+          </div>
+
+          <div class="url-import-row">
+            <input
+              type="text"
+              id="inputPolyline"
+              placeholder="Paste polyline string (e.g. {~wCskwdV...)"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <button class="btn-primary" id="btnLoadPolyline" title="Decode and load route">
+              Decode
+            </button>
+          </div>
+          <div id="polylineError" style="display: none; color: var(--accent-red); font-size: 11px; margin-top: 5px;"></div>
         </section>
 
         <!-- 3. Telemetry & Compression Ratio -->
@@ -291,9 +309,9 @@
 
                 <!-- 3 Distance Quick Presets -->
                 <div class="scenario-buttons" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 6px;">
-                  <button id="btnDistAtStart" type="button" class="btn-active">0m 起點導航</button>
-                  <button id="btnDistNear" type="button">450m 進入圖案</button>
-                  <button id="btnDistFar" type="button">3.0km 遠程全覽</button>
+                  <button id="btnDistAtStart" type="button" class="btn-active">0m At Start</button>
+                  <button id="btnDistNear" type="button">450m Near Start</button>
+                  <button id="btnDistFar" type="button">3.0km Far Preview</button>
                 </div>
 
                 <!-- Scenario Triggers -->

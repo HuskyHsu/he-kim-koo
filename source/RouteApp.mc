@@ -72,5 +72,48 @@ function testLoadRoute(logger as Toybox.Test.Logger) as Boolean {
     field.onUpdate(dc);
     logger.debug("Passed 4.");
 
+    logger.debug("5. Testing onUpdate in NO ROUTE free-exploration mode...");
+    field.setRouteForTesting([]);
+    field.onUpdate(dc);
+    logger.debug("Passed 5.");
+
+    logger.debug("6. Testing Off-Course Debounce, Hysteresis, and GPS Quality Filter...");
+    field.setRouteForTesting(pts);
+    field.setGpsAccuracyForTesting(3); // USABLE
+
+    // Single sample > 35m: should NOT trigger off-course yet
+    field.updateOffCourseForTesting(40.0f);
+    Toybox.Test.assertEqual(field.isOffCourse(), false);
+
+    // Second sample > 35m: still false
+    field.updateOffCourseForTesting(42.0f);
+    Toybox.Test.assertEqual(field.isOffCourse(), false);
+
+    // Glitch resets if back within 35m
+    field.updateOffCourseForTesting(10.0f);
+    Toybox.Test.assertEqual(field.isOffCourse(), false);
+
+    // 3 consecutive samples > 35m: triggers off-course!
+    field.updateOffCourseForTesting(38.0f);
+    field.updateOffCourseForTesting(39.0f);
+    field.updateOffCourseForTesting(41.0f);
+    Toybox.Test.assertEqual(field.isOffCourse(), true);
+
+    // Hysteresis deadband: recovering to 30m (<= 35m but > 25m) must RETAIN off-course
+    field.updateOffCourseForTesting(30.0f);
+    Toybox.Test.assertEqual(field.isOffCourse(), true);
+
+    // Recovering to <= 25m clears off-course
+    field.updateOffCourseForTesting(22.0f);
+    Toybox.Test.assertEqual(field.isOffCourse(), false);
+
+    // GPS Quality < QUALITY_USABLE (e.g. 2 / POOR): must be ignored
+    field.setGpsAccuracyForTesting(2);
+    field.updateOffCourseForTesting(50.0f);
+    field.updateOffCourseForTesting(50.0f);
+    field.updateOffCourseForTesting(50.0f);
+    Toybox.Test.assertEqual(field.isOffCourse(), false); // Ignored due to low GPS quality!
+    logger.debug("Passed 6.");
+
     return true;
 }

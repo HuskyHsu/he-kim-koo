@@ -27,6 +27,6 @@ key:
 
 help:
 	@./scripts/build.sh help
-	@echo "  make web    - 啟動網頁端 GPX 轉檔與腕錶模擬工作台 (http://localhost:8080)"
+	@echo "  make web    - Launch web companion workstation (http://localhost:8080)"
 
 

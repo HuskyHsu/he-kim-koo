@@ -27,6 +27,8 @@ class RouteDataField extends WatchUi.DataField {
     private const DEFAULT_MAP_RANGE_M = 175.0f;
     private const CULL_MARGIN_FACTOR = 1.30f;
     private const OFF_COURSE_THRESHOLD_M = 35.0f;
+    private const OFF_COURSE_CLEAR_THRESHOLD_M = 25.0f;
+    private const GPS_QUALITY_USABLE = 3;        // Position.QUALITY_USABLE
     private const SNAP_LOCK_DIST_SQ = 2025.0f;   // 45.0m^2
     private const PREVIEW_DIST_M = 250.0f;
     private const TURN_CUE_MAX_DIST_M = 60.0f;
@@ -111,12 +113,21 @@ class RouteDataField extends WatchUi.DataField {
     private var mTargetHeading as Float = 0.0f;
     private var mRenderHeading as Float = 0.0f;
 
+    // Heading history ring buffer (4 samples @ 1Hz) for noise-free baseline displacement
+    private const HEADING_HIST_CAPACITY = 4;
+    private var mHeadingHistLat as Array<Number> = new [HEADING_HIST_CAPACITY] as Array<Number>;
+    private var mHeadingHistLon as Array<Number> = new [HEADING_HIST_CAPACITY] as Array<Number>;
+    private var mHeadingHistHead as Number = 0;
+    private var mHeadingHistCount as Number = 0;
+
     // Navigation status & alerts
     private var mPreviewMode as Boolean = false;
     private var mDistToStart as Number = 0;
     private var mBearingToStart as Float = 0.0f;
     private var mIsOffCourse as Boolean = false;
     private var mOffCourseDist as Number = 0;
+    private var mOffCourseCount as Number = 0;
+    private var mGpsAccuracy as Number = GPS_QUALITY_USABLE;
     private var mTurnDist as Number = -1;       // Distance in meters to next turn (-1 = none)
     private var mTurnDirection as Number = 0;   // +1 = Right, -1 = Left
 
@@ -455,17 +466,28 @@ class RouteDataField extends WatchUi.DataField {
     // Real-Time 1 Hz Compute Loop
     // =========================================================================
     function compute(info as Activity.Info) as Void {
-        // 1. Read heading: Speed-aware dynamic heading selection
-        updateTargetHeading(info);
-
-        // 2. Angular exponential smoothing (handles [-PI, +PI] wrap-around)
-        mRenderHeading += wrapAngleRad(mTargetHeading - mRenderHeading) * 0.40f;
-        mRenderHeading = wrapAngleRad(mRenderHeading);
-
-        // 3. Verify & update GPS location
+        // 1. Verify & update GPS location first
         if (!updateGpsLocation(info)) {
             return;
         }
+
+        // 2. Read heading: Speed-aware dynamic heading with accumulated baseline window
+        updateTargetHeading(info);
+
+        // 3. Adaptive Dynamic Alpha Filter: Smooth straight line, instant cornering
+        var angleDiff = wrapAngleRad(mTargetHeading - mRenderHeading);
+        var absDiff = (angleDiff < 0.0f) ? -angleDiff : angleDiff;
+
+        // Straight running (<15 deg): alpha = 0.12 (strong noise suppression against arm swing)
+        // Corner turning (>30 deg): scale alpha up to 0.45 (zero lag response)
+        var alpha = 0.12f;
+        if (absDiff > 0.26f) { // > ~15 deg
+            var t = (absDiff - 0.26f) / 0.70f;
+            if (t > 1.0f) { t = 1.0f; }
+            alpha = 0.12f + t * 0.33f;
+        }
+
+        mRenderHeading = wrapAngleRad(mRenderHeading + angleDiff * alpha);
 
         // 4. Record smooth trail points (every >5m)
         var dLatFromLast = (mCurrLatMicro - mLastTrailLat) * METERS_PER_MICRO_LAT;
@@ -500,6 +522,7 @@ class RouteDataField extends WatchUi.DataField {
 
         if (mPointCount < 2) {
             mIsOffCourse = false;
+            mOffCourseCount = 0;
             mTurnDist = -1;
             return;
         }
@@ -521,30 +544,84 @@ class RouteDataField extends WatchUi.DataField {
         if (minDist > PREVIEW_DIST_M) {
             mPreviewMode = true;
             mIsOffCourse = false;
+            mOffCourseCount = 0;
         } else {
             mPreviewMode = false;
-            if (minDist > OFF_COURSE_THRESHOLD_M) {
-                mIsOffCourse = true;
-                mOffCourseDist = minDist.toNumber();
-            } else {
-                mIsOffCourse = false;
-                mOffCourseDist = 0;
-            }
+            updateOffCourseState(minDist);
         }
 
         // 8. O(1) Upcoming Turn Cue computation (< 60m) via cumulative distance table
         updateTurnCue();
     }
 
+    private function updateOffCourseState(minDist as Float) as Void {
+        // Ignore poor GPS fixes (< QUALITY_USABLE) to prevent ghost off-course alerts
+        if (mGpsAccuracy < GPS_QUALITY_USABLE) {
+            return;
+        }
+
+        if (mIsOffCourse) {
+            // Hysteresis recovery: Must return within 25m to clear off-course alert
+            if (minDist <= OFF_COURSE_CLEAR_THRESHOLD_M) {
+                mIsOffCourse = false;
+                mOffCourseDist = 0;
+                mOffCourseCount = 0;
+            } else {
+                mOffCourseDist = minDist.toNumber();
+            }
+        } else {
+            // Hysteresis trigger: Must stay > 35m for 3 consecutive 1Hz samples
+            if (minDist > OFF_COURSE_THRESHOLD_M) {
+                mOffCourseCount++;
+                if (mOffCourseCount >= 3) {
+                    mIsOffCourse = true;
+                    mOffCourseDist = minDist.toNumber();
+                }
+            } else {
+                mOffCourseCount = 0;
+            }
+        }
+    }
+
     private function updateTargetHeading(info as Activity.Info) as Void {
         var speed = (info has :currentSpeed) ? info.currentSpeed : null;
         var trk = (info has :track) ? info.track : null;
 
-        if (trk != null && (speed == null || speed > 0.8f)) {
+        // 1. Record fresh 1Hz GPS position into heading history buffer
+        mHeadingHistLat[mHeadingHistHead] = mCurrLatMicro;
+        mHeadingHistLon[mHeadingHistHead] = mCurrLonMicro;
+        mHeadingHistHead = (mHeadingHistHead + 1) % HEADING_HIST_CAPACITY;
+        if (mHeadingHistCount < HEADING_HIST_CAPACITY) {
+            mHeadingHistCount++;
+        }
+
+        // 2. Deadband: If stationary or moving very slowly (< 0.6 m/s), lock heading
+        if (speed != null && speed < 0.6f) {
+            return;
+        }
+
+        // 3. If running at good speed (> 1.4 m/s) and GPS Doppler track is valid, use it
+        if (trk != null && (speed == null || speed > 1.4f)) {
             mTargetHeading = trk.toFloat();
             return;
         }
 
+        // 4. Calculate heading from accumulated baseline window (oldest vs newest in 3-4s buffer)
+        // This eliminates 1-second differential jitter
+        if (mHeadingHistCount >= 2) {
+            var oldestIdx = (mHeadingHistHead - mHeadingHistCount + HEADING_HIST_CAPACITY) % HEADING_HIST_CAPACITY;
+            var dLonM = (mCurrLonMicro - mHeadingHistLon[oldestIdx]) * mMetersPerLon;
+            var dLatM = (mCurrLatMicro - mHeadingHistLat[oldestIdx]) * METERS_PER_MICRO_LAT;
+            var baselineDistSq = dLonM * dLonM + dLatM * dLatM;
+
+            // Only update heading if baseline displacement >= 3.0 meters (eliminates GPS noise)
+            if (baselineDistSq >= 9.0f) {
+                mTargetHeading = Math.atan2(dLonM, dLatM).toFloat();
+                return;
+            }
+        }
+
+        // 5. Fallback: Electronic compass or Position heading if available
         var ch = (info has :currentHeading) ? info.currentHeading : null;
         if (ch != null) {
             mTargetHeading = ch.toFloat();
@@ -566,6 +643,20 @@ class RouteDataField extends WatchUi.DataField {
     }
 
     private function updateGpsLocation(info as Activity.Info) as Boolean {
+        var acc = (info has :currentLocationAccuracy) ? info.currentLocationAccuracy : null;
+        if (acc == null) {
+            try {
+                var posInfo = Position.getInfo();
+                if (posInfo != null && posInfo has :accuracy && posInfo.accuracy != null) {
+                    acc = posInfo.accuracy;
+                }
+            } catch (e) {
+            }
+        }
+        if (acc != null) {
+            mGpsAccuracy = acc.toNumber();
+        }
+
         var location = (info has :currentLocation) ? info.currentLocation : null;
         if (location == null) {
             try {
@@ -617,6 +708,7 @@ class RouteDataField extends WatchUi.DataField {
         } else {
             mHasGps = false;
             mIsOffCourse = false;
+            mOffCourseCount = 0;
         }
     }
 
@@ -750,12 +842,25 @@ class RouteDataField extends WatchUi.DataField {
         dc.setColor(COLOR_BLACK, COLOR_BLACK);
         dc.clear();
 
-        // 2. Status message: No route configured
+        // 2. No route configured: free-trail exploration mode
+        // Renders firefly trail, sparks, and runner cursor in heading-up mode,
+        // without route lines, with a "NO ROUTE" capsule badge.
         if (mPointCount < 2) {
-            dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, cy - 24, Graphics.FONT_MEDIUM, "NO ROUTE", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, cy + 28, Graphics.FONT_XTINY, "PASTE IN APP SETTINGS", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            var heading = mRenderHeading;
+            var sinH = Math.sin(heading).toFloat();
+            var cosH = Math.cos(heading).toFloat();
+            var zoomScale = cx.toFloat() / mMapRange;
+
+            renderFireflyTrail(dc, cx, cy, sinH, cosH, zoomScale);
+            renderSparks(dc, cx, cy, sinH, cosH, zoomScale);
+            renderRunnerCursor(dc, cx, cy);
+            renderNoRouteCapsule(dc, cx, h);
+
+            if (!mHasGps) {
+                dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_TRANSPARENT);
+                var gpsMsg = mHasEverHadGps ? "SEARCHING GPS..." : "WAITING FOR GPS...";
+                dc.drawText(cx, (h * 0.85f).toNumber(), Graphics.FONT_XTINY, gpsMsg, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            }
             return;
         }
 
@@ -1103,6 +1208,33 @@ class RouteDataField extends WatchUi.DataField {
         }
     }
 
+    private function renderNoRouteCapsule(dc as Graphics.Dc, cx as Number, h as Number) as Void {
+        var labelStr = "NO ROUTE";
+        var topY = (h * 0.14f).toNumber();
+        var font = Graphics.FONT_XTINY;
+        var fontH = dc.getFontHeight(font);
+        var textW = dc.getTextWidthInPixels(labelStr, font);
+        var pillW = textW + 20;
+        var pillH = (fontH * 0.95f).toNumber();
+        if (pillH < 20) { pillH = 20; }
+        var pillX = cx - (pillW / 2);
+        var pillY = topY - (pillH / 2);
+        var pillR = (pillH / 2).toNumber();
+
+        // Capsule background: Deep midnight cyan/slate
+        dc.setColor(0x041C24, 0x041C24);
+        dc.fillRoundedRectangle(pillX, pillY, pillW, pillH, pillR);
+
+        // Capsule border: Bioluminescent Cyan 1px outline
+        dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(1);
+        dc.drawRoundedRectangle(pillX, pillY, pillW, pillH, pillR);
+
+        // Capsule text: Electric Cyan
+        dc.setColor(COLOR_CYAN, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, topY, font, labelStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+    }
+
     // =========================================================================
     // Full Route Preview (Waiting for GPS / Far Away Mode)
     // =========================================================================
@@ -1228,8 +1360,11 @@ class RouteDataField extends WatchUi.DataField {
         var barY = (h * 0.70f).toNumber();
 
         var scaleLabel = (bestStep >= 1000) ? (bestStep / 1000) + " km" : bestStep + " m";
+        var fontH = dc.getFontHeight(Graphics.FONT_XTINY);
+        var textY = barY - (fontH / 2) - 6;
+
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, barY - 11, Graphics.FONT_XTINY, scaleLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(cx, textY, Graphics.FONT_XTINY, scaleLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
         dc.setPenWidth(2);
         dc.drawLine(barX, barY, barX + barW, barY);
@@ -1351,21 +1486,26 @@ class RouteDataField extends WatchUi.DataField {
         var targetAngle = wrapAngleRad(mBearingToStart - mRenderHeading);
         var tSin = Math.sin(targetAngle).toFloat();
         var tCos = Math.cos(targetAngle).toFloat();
-        var tx = cx + tSin * ringR;
-        var ty = cy - tCos * ringR;
         var tdx = tSin;
         var tdy = -tCos;
         var ttx = -tdy;
         var tty = tdx;
 
-        var tTipX = (tx + tdx * 7).toNumber();
-        var tTipY = (ty + tdy * 7).toNumber();
-        var tw1X = (tx - tdx * 6 + ttx * 6).toNumber();
-        var tw1Y = (ty - tdy * 6 + tty * 6).toNumber();
-        var tw2X = (tx - tdx * 6 - ttx * 6).toNumber();
-        var tw2Y = (ty - tdy * 6 - tty * 6).toNumber();
-        var tNotchX = (tx - tdx * 2).toNumber();
-        var tNotchY = (ty - tdy * 2).toNumber();
+        // Ensure the arrow tip stays cleanly inside the outer compass ring and visible display area
+        // ringR is (min(cx, cy) - 10). Setting arrowTipR = ringR - 4 guarantees ample bezel margin.
+        var arrowTipR = ringR - 4;
+        var arrowLen = 13;
+        var arrowWingSpan = 6;
+        var arrowNotch = 4;
+
+        var tTipX = (cx + tdx * arrowTipR).toNumber();
+        var tTipY = (cy + tdy * arrowTipR).toNumber();
+        var tw1X = (cx + tdx * (arrowTipR - arrowLen) + ttx * arrowWingSpan).toNumber();
+        var tw1Y = (cy + tdy * (arrowTipR - arrowLen) + tty * arrowWingSpan).toNumber();
+        var tw2X = (cx + tdx * (arrowTipR - arrowLen) - ttx * arrowWingSpan).toNumber();
+        var tw2Y = (cy + tdy * (arrowTipR - arrowLen) - tty * arrowWingSpan).toNumber();
+        var tNotchX = (cx + tdx * (arrowTipR - arrowLen + arrowNotch)).toNumber();
+        var tNotchY = (cy + tdy * (arrowTipR - arrowLen + arrowNotch)).toNumber();
 
         mPolygonBuf[0][0] = tTipX;
         mPolygonBuf[0][1] = tTipY;
@@ -1390,43 +1530,74 @@ class RouteDataField extends WatchUi.DataField {
         var startDistStr = formatDistance(mDistToStart.toFloat());
         var fontH1 = dc.getFontHeight(Graphics.FONT_XTINY);
         var fontH2 = dc.getFontHeight(Graphics.FONT_TINY);
-        var lineOffset1 = (fontH1 * 0.45f).toNumber();
-        var lineOffset2 = (fontH2 * 0.45f).toNumber();
-        var lblDist = (ringR * 0.20f);
+        var textW1 = dc.getTextWidthInPixels("START", Graphics.FONT_XTINY);
+        var textW2 = dc.getTextWidthInPixels(startDistStr, Graphics.FONT_TINY);
+        var maxTextW = (textW1 > textW2) ? textW1 : textW2;
 
-        var lblBaseX = (tx - tdx * lblDist).toNumber();
-        var lblBaseY = (ty - tdy * lblDist).toNumber();
+        var halfW = (maxTextW / 2.0f);
+        var lineGap = 2;
+        var halfH = (fontH1 + fontH2 + lineGap) / 2.0f;
+
+        // Calculate radial extent of text box along (tdx, tdy) to guarantee no overlap with the arrow at any angle
+        var absTdx = (tdx < 0.0f) ? -tdx : tdx;
+        var absTdy = (tdy < 0.0f) ? -tdy : tdy;
+        var textRadialSpan = absTdx * halfW + absTdy * halfH;
+
+        // Gap between arrow inner boundary (wings) and text box outer boundary
+        var gap = 8.0f;
+        var arrowInnerR = (arrowTipR - arrowLen).toFloat();
+        var lblR = arrowInnerR - gap - textRadialSpan;
+
+        var lblBaseX = (cx + tdx * lblR).toNumber();
+        var lblBaseY = (cy + tdy * lblR).toNumber();
+
+        var line1Y = (lblBaseY - halfH + (fontH1 / 2.0f)).toNumber();
+        var line2Y = (lblBaseY + halfH - (fontH2 / 2.0f)).toNumber();
 
         // Line 1: START (lime green)
         dc.setColor(COLOR_LIME, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(lblBaseX, lblBaseY - lineOffset1, Graphics.FONT_XTINY, "START", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(lblBaseX, line1Y, Graphics.FONT_XTINY, "START", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
 
         // Line 2: Distance directly underneath START (white, prominent FONT_TINY)
         dc.setColor(COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(lblBaseX, lblBaseY + lineOffset2, Graphics.FONT_TINY, startDistStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(lblBaseX, line2Y, Graphics.FONT_TINY, startDistStr, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
-    (:test)
     public function setRouteForTesting(pts as Array<Number>) as Void {
         mPoints = pts;
         mPointCount = pts.size() / 2;
-        computeRouteBounds();
-        computeCumulativeDistances();
-        computeCornerAnchors();
+        if (mPointCount >= 2) {
+            computeRouteBounds();
+            computeCumulativeDistances();
+            computeCornerAnchors();
+        }
     }
 
-    (:test)
     public function simulateLocation(latMicro as Number, lonMicro as Number, headingRad as Float, isFar as Boolean) as Void {
-        if (mPointCount < 2) { return; }
         mHasGps = true;
         mHasEverHadGps = true;
+        mGpsAccuracy = GPS_QUALITY_USABLE;
         mCurrLatMicro = latMicro;
         mCurrLonMicro = lonMicro;
         mRenderHeading = headingRad;
         mPreviewMode = isFar;
-        var dStartLonM = (mPoints[1] - mCurrLonMicro) * mMetersPerLon;
-        var dStartLatM = (mPoints[0] - mCurrLatMicro) * METERS_PER_MICRO_LAT;
-        mDistToStart = Math.sqrt(dStartLonM * dStartLonM + dStartLatM * dStartLatM).toNumber();
-        mBearingToStart = Math.atan2(dStartLonM, dStartLatM).toFloat();
+        if (mPointCount >= 2) {
+            var dStartLonM = (mPoints[1] - mCurrLonMicro) * mMetersPerLon;
+            var dStartLatM = (mPoints[0] - mCurrLatMicro) * METERS_PER_MICRO_LAT;
+            mDistToStart = Math.sqrt(dStartLonM * dStartLonM + dStartLatM * dStartLatM).toNumber();
+            mBearingToStart = Math.atan2(dStartLonM, dStartLatM).toFloat();
+        }
+    }
+
+    public function isOffCourse() as Boolean {
+        return mIsOffCourse;
+    }
+
+    public function setGpsAccuracyForTesting(acc as Number) as Void {
+        mGpsAccuracy = acc;
+    }
+
+    public function updateOffCourseForTesting(minDist as Float) as Void {
+        updateOffCourseState(minDist);
     }
 }

@@ -1,6 +1,6 @@
 // =============================================================================
-// He-Kim-Koo 路線清單
-// 未來若有新路線，只需在此加入檔案路徑與名稱，距離與點數會由前端 JS 自動計算！
+// He-Kim-Koo Curated Route Library
+// Distance and point counts are computed dynamically by frontend JavaScript!
 // =============================================================================
 
 window.HE_KIM_KOO_ROUTES = [
@@ -8,7 +8,7 @@ window.HE_KIM_KOO_ROUTES = [
     id: 'dino',
     name: 'Taipei Dino',
     file: 'routes/dino.gpx',
-    // 內建離線備援資料（直接雙擊 index.html 時免 HTTP 伺服器即可直接運算）
+    // Embedded offline fallback data (works without local HTTP server)
     content: `<?xml version="1.0" encoding="UTF-8"?>
 <gpx creator="https://gpx.studio" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
   <trk><name>Taipei Dino</name><trkseg>
@@ -195,5 +195,10 @@ window.HE_KIM_KOO_ROUTES = [
     <trkpt lat="25.062702" lon="121.530339"><ele>9.77</ele></trkpt>
   </trkseg></trk>
 </gpx>`,
+  },
+  {
+    id: 'no-route',
+    name: 'No Route (Free Walk)',
+    isNoRoute: true,
   },
 ];
