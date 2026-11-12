@@ -119,6 +119,8 @@ class RouteDataField extends WatchUi.DataField {
     private var mHeadingHistLon as Array<Number> = new [HEADING_HIST_CAPACITY] as Array<Number>;
     private var mHeadingHistHead as Number = 0;
     private var mHeadingHistCount as Number = 0;
+    private var mCompassReliable as Boolean = true;
+    private var mCompassBadCount as Number = 0;
 
     // Navigation status & alerts
     private var mPreviewMode as Boolean = false;
@@ -218,6 +220,11 @@ class RouteDataField extends WatchUi.DataField {
         mSparkHead = 0;
         mLastSparkLat = 0;
         mLastSparkLon = 0;
+
+        mHeadingHistCount = 0;
+        mHeadingHistHead = 0;
+        mCompassReliable = true;
+        mCompassBadCount = 0;
 
         mGpsLostCount = 0;
         if (!mHasGps) {
@@ -603,6 +610,7 @@ class RouteDataField extends WatchUi.DataField {
         // 3. If running at good speed (> 1.4 m/s) and GPS Doppler track is valid, use it
         if (trk != null && (speed == null || speed > 1.4f)) {
             mTargetHeading = trk.toFloat();
+            checkCompassSanity(info, mTargetHeading);
             return;
         }
 
@@ -617,11 +625,17 @@ class RouteDataField extends WatchUi.DataField {
             // Only update heading if baseline displacement >= 3.0 meters (eliminates GPS noise)
             if (baselineDistSq >= 9.0f) {
                 mTargetHeading = Math.atan2(dLonM, dLatM).toFloat();
+                checkCompassSanity(info, mTargetHeading);
                 return;
             }
         }
 
         // 5. Fallback: Electronic compass or Position heading if available
+        // If compass failed sanity check against real movement, lock to current target heading
+        if (!mCompassReliable) {
+            return;
+        }
+
         var ch = (info has :currentHeading) ? info.currentHeading : null;
         if (ch != null) {
             mTargetHeading = ch.toFloat();
@@ -639,6 +653,29 @@ class RouteDataField extends WatchUi.DataField {
                 mTargetHeading = posInfo.heading.toFloat();
             }
         } catch (e) {
+        }
+    }
+
+    private function checkCompassSanity(info as Activity.Info, groundHeading as Float) as Void {
+        var ch = (info has :currentHeading) ? info.currentHeading : null;
+        if (ch != null) {
+            var magErr = wrapAngleRad(ch.toFloat() - groundHeading);
+            if (magErr < 0.0f) { magErr = -magErr; }
+            if (magErr > 0.90f) { // > ~51 degrees divergence
+                if (mCompassBadCount < 6) {
+                    mCompassBadCount++;
+                }
+                if (mCompassBadCount >= 3) {
+                    mCompassReliable = false;
+                }
+            } else {
+                if (mCompassBadCount > 0) {
+                    mCompassBadCount--;
+                }
+                if (mCompassBadCount == 0) {
+                    mCompassReliable = true;
+                }
+            }
         }
     }
 
