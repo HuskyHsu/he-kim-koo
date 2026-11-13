@@ -11,16 +11,16 @@ on:
 jobs:
   web-and-config-tests:
     name: Web Engine, Settings Sync & XML Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Syntax-check web JavaScript files
         run: |
@@ -44,11 +44,11 @@ jobs:
 
   garmin-ciq-build:
     name: Garmin Connect IQ Compile Check (venu2plus)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate ephemeral key for compile check
         run: |
@@ -82,12 +82,12 @@ jobs:
     name: Build Signed .iq Package (Beta / Release)
     needs: [web-and-config-tests, garmin-ciq-build]
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: key
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Decode GARMIN_DEVELOPER_KEY_BASE64
         env:
@@ -173,7 +173,7 @@ jobs:
           extraArgs: "-w -r"
 
       - name: Upload private CI Artifact (.iq & .prg)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hekimkoo-${{ steps.pkg.outputs.channel }}-package
           path: |
