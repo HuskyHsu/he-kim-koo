@@ -59,7 +59,7 @@ jobs:
           fi
 
       - name: Compile release .prg (venu2plus)
-        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        uses: blackshadev/garmin-connectiq-build-action@9.3.0
         with:
           projectJungle: ./monkey.jungle
           developerKey: ./developer_key
@@ -69,7 +69,7 @@ jobs:
           extraArgs: "-w -r"
 
       - name: Compile unit-test .prg (-t)
-        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        uses: blackshadev/garmin-connectiq-build-action@9.3.0
         with:
           projectJungle: ./monkey.jungle
           developerKey: ./developer_key
@@ -145,7 +145,7 @@ jobs:
           PY
 
       - name: Export signed .iq package
-        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        uses: blackshadev/garmin-connectiq-build-action@9.3.0
         with:
           projectJungle: ./monkey.jungle
           developerKey: ./developer_key
@@ -155,7 +155,7 @@ jobs:
           extraArgs: "-e -w -r"
 
       - name: Export signed .prg (USB sideload)
-        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        uses: blackshadev/garmin-connectiq-build-action@9.3.0
         with:
           projectJungle: ./monkey.jungle
           developerKey: ./developer_key
