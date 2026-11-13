@@ -333,33 +333,63 @@ function processGpxXml(xmlText, routeLabel = 'Custom Route') {
 // Core Polyline String Processing Function
 function processPolylineString(polylineStr, routeLabel = 'Shared Polyline') {
   if (!polylineStr || typeof polylineStr !== 'string') {
+    if (window.simState) window.simState.routeStatus = 'INVALID';
+    if (typeof initWatchSimulation === 'function') initWatchSimulation([]);
     showPolylineError('Please enter a valid polyline string.');
     return false;
   }
 
   const cleanStr = polylineStr.trim().replace(/^["']|["']$/g, '');
   if (!cleanStr) {
+    if (window.simState) window.simState.routeStatus = 'OK';
+    if (typeof initWatchSimulation === 'function') initWatchSimulation([]);
     showPolylineError('Polyline string is empty.');
     return false;
+  }
+
+  // Validate Google Polyline ASCII range [63..126]
+  for (let i = 0; i < cleanStr.length; i++) {
+    const code = cleanStr.charCodeAt(i);
+    if (code < 63 || code > 126) {
+      if (window.simState) window.simState.routeStatus = 'INVALID';
+      if (typeof initWatchSimulation === 'function') initWatchSimulation([]);
+      showPolylineError('Invalid polyline character detected (INVALID ROUTE on watch).');
+      return false;
+    }
   }
 
   let points;
   try {
     points = decodeGooglePolyline(cleanStr);
   } catch (err) {
+    if (window.simState) window.simState.routeStatus = 'INVALID';
+    if (typeof initWatchSimulation === 'function') initWatchSimulation([]);
     showPolylineError('Failed to decode polyline: ' + (err.message || 'Malformed format'));
     return false;
   }
 
   if (!points || points.length < 2) {
+    if (window.simState) window.simState.routeStatus = 'INVALID';
+    if (typeof initWatchSimulation === 'function') initWatchSimulation([]);
     showPolylineError('Invalid polyline: decoded less than 2 coordinate points.');
     return false;
   }
 
+  if (window.simState) {
+    if (points.length > 150) {
+      window.simState.routeStatus = 'TRUNCATED';
+      window.simState.truncatedTotalPts = points.length;
+    } else {
+      window.simState.routeStatus = 'OK';
+      window.simState.truncatedTotalPts = 0;
+    }
+  }
+
   hidePolylineError();
 
-  // If already <= 130 points, keep exact anchors intact without re-simplifying
-  const simplified = points.length <= 130 ? points : smartSimplifyRoute(points, 100, 130);
+  // Mirror watch MAX_POINTS (150) cap if exceeded, otherwise keep exact anchors
+  const watchCapped = points.length > 150 ? points.slice(0, 150) : points;
+  const simplified = watchCapped.length <= 130 ? watchCapped : smartSimplifyRoute(watchCapped, 100, 130);
   applyRouteData(points, simplified, routeLabel);
   return true;
 }

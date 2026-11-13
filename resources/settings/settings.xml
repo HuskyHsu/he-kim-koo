@@ -1,9 +1,7 @@
 <settings>
+    <!-- [Route] -->
     <setting propertyKey="@Properties.routeString" title="@Strings.RouteStringTitle" prompt="@Strings.RouteStringPrompt">
         <settingConfig type="alphaNumeric" maxLength="2048" />
-    </setting>
-    <setting propertyKey="@Properties.mapRange" title="@Strings.MapRangeTitle" prompt="@Strings.MapRangePrompt">
-        <settingConfig type="numeric" min="50" max="1000" errorMessage="@Strings.MapRangeError" />
     </setting>
     <setting propertyKey="@Properties.routeDirection" title="@Strings.RouteDirectionTitle" prompt="@Strings.RouteDirectionPrompt">
         <settingConfig type="list">
@@ -11,16 +9,29 @@
             <listEntry value="1">@Strings.DirectionReverse</listEntry>
         </settingConfig>
     </setting>
+
+    <!-- [Map] -->
+    <setting propertyKey="@Properties.mapRange" title="@Strings.MapRangeTitle" prompt="@Strings.MapRangePrompt">
+        <settingConfig type="numeric" min="50" max="1000" errorMessage="@Strings.MapRangeError" />
+    </setting>
     <setting propertyKey="@Properties.showDirection" title="@Strings.ShowDirectionTitle" prompt="@Strings.ShowDirectionPrompt">
         <settingConfig type="boolean" />
     </setting>
     <setting propertyKey="@Properties.dimCompletedPath" title="@Strings.DimCompletedPathTitle" prompt="@Strings.DimCompletedPathPrompt">
         <settingConfig type="boolean" />
     </setting>
+    <setting propertyKey="@Properties.showCornerAnchors" title="@Strings.ShowCornerAnchorsTitle" prompt="@Strings.ShowCornerAnchorsPrompt">
+        <settingConfig type="boolean" />
+    </setting>
+
+    <!-- [HUD & Alerts] -->
     <setting propertyKey="@Properties.showTurnCue" title="@Strings.ShowTurnCueTitle" prompt="@Strings.ShowTurnCuePrompt">
         <settingConfig type="boolean" />
     </setting>
-    <setting propertyKey="@Properties.showCornerAnchors" title="@Strings.ShowCornerAnchorsTitle" prompt="@Strings.ShowCornerAnchorsPrompt">
+    <setting propertyKey="@Properties.showProgress" title="@Strings.ShowProgressTitle" prompt="@Strings.ShowProgressPrompt">
+        <settingConfig type="boolean" />
+    </setting>
+    <setting propertyKey="@Properties.enableVibration" title="@Strings.EnableVibrationTitle" prompt="@Strings.EnableVibrationPrompt">
         <settingConfig type="boolean" />
     </setting>
 </settings>

@@ -19,6 +19,8 @@ const toggleDirection = document.getElementById('toggleDirection');
 const toggleDim = document.getElementById('toggleDim');
 const toggleTurnCue = document.getElementById('toggleTurnCue');
 const toggleAnchors = document.getElementById('toggleAnchors');
+const toggleProgress = document.getElementById('toggleProgress');
+const toggleVibration = document.getElementById('toggleVibration');
 
 // Backward compatibility references (if old markup exists)
 const btnSimDirection = document.getElementById('btnSimDirection');
@@ -77,7 +79,9 @@ const simState = {
   dimCompletedPath: true,
   showTurnCue: true,
   showCornerAnchors: true,
+  showProgress: true,
   simulateHaptic: true,
+  fieldHeight: 416,
   wasOffCourse: false,
   isOffCourse: false,
   offCourseCount: 0,
@@ -91,6 +95,9 @@ const simState = {
   previewMode: false,
   distToStart: 0,
   bearingToStart: 0,
+  lastVibedCornerIdx: -1,
+  routeStatus: 'OK',
+  truncatedTotalPts: 0,
 };
 
 function triggerHaptic(type = 'vibe', message = 'Off-Course Alert (+45m)') {
@@ -186,6 +193,7 @@ function seekToDistance(targetMeters) {
   simState.segIdx = seg;
   simState.segProgress = progress;
   simState.hasFinished = false;
+  simState.lastVibedCornerIdx = -1;
 
   for (let i = 0; i < visitedSegments.length; i++) {
     visitedSegments[i] = i < seg;
@@ -244,6 +252,7 @@ function getNextTurnCue() {
     const deg = (diff * 180) / Math.PI;
     if (Math.abs(deg) >= 35) {
       return {
+        cornerIdx: i,
         dist: Math.round(distAhead),
         direction: deg > 0 ? 'right' : 'left',
         label: deg > 0 ? `↱ ${Math.round(distAhead)}m` : `↰ ${Math.round(distAhead)}m`,
@@ -360,6 +369,7 @@ function resetSimulationState(startSegIdx = 0) {
     simState.isGuideToStart = false;
     simState.hasFinished = false;
     simState.wasOffCourse = false;
+    simState.lastVibedCornerIdx = -1;
     simState.previewMode = false;
     simState.freeWalkDistance = 0;
     simState.randomWalkStepDist = 0;
@@ -580,6 +590,31 @@ if (toggleAnchors) {
   });
 }
 
+if (toggleProgress) {
+  toggleProgress.checked = simState.showProgress;
+  toggleProgress.addEventListener('change', (e) => {
+    simState.showProgress = e.target.checked;
+    drawWatchScreen();
+  });
+}
+
+if (toggleVibration) {
+  toggleVibration.checked = simState.simulateHaptic;
+  toggleVibration.addEventListener('change', (e) => {
+    simState.simulateHaptic = e.target.checked;
+  });
+}
+
+const simLayoutSelect = document.getElementById('simLayoutSelect');
+if (simLayoutSelect) {
+  simLayoutSelect.value = String(simState.fieldHeight || 416);
+  simLayoutSelect.addEventListener('change', (e) => {
+    const val = parseInt(e.target.value, 10);
+    simState.fieldHeight = Number.isFinite(val) ? val : 416;
+    drawWatchScreen();
+  });
+}
+
 // Timeline Scrubber Slider
 if (timelineSlider) {
   timelineSlider.addEventListener('input', (e) => {
@@ -720,7 +755,7 @@ function simAnimationLoop(now) {
   const dt = Math.min((now - (simState.lastTick || now)) / 1000, 0.1);
   simState.lastTick = now;
 
-  const speedMultiplier = simSpeedSelect ? parseFloat(simSpeedSelect.value) : 2.0;
+  const speedMultiplier = simSpeedSelect ? parseFloat(simSpeedSelect.value) : 5.0;
   const runSpeedMetersPerSec = 3.2 * speedMultiplier;
 
   if (simRoute && simRoute.length >= 2) {
@@ -1255,7 +1290,8 @@ function renderRoutePreviewWeb(dc, cx, cy, w, h) {
 function renderNoRouteCapsuleWeb(dc, cx, h) {
   dc.save();
   const topY = Math.round(h * 0.14);
-  const textStr = 'NO ROUTE';
+  const isInvalid = simState.routeStatus === 'INVALID';
+  const textStr = isInvalid ? 'INVALID ROUTE' : 'NO ROUTE';
   dc.font = 'bold 12px -apple-system, sans-serif';
   const textW = dc.measureText(textStr).width;
   const pillW = textW + 20;
@@ -1264,32 +1300,126 @@ function renderNoRouteCapsuleWeb(dc, cx, h) {
   const pillY = topY - pillH / 2;
   const pillR = pillH / 2;
 
-  // Background: Deep midnight cyan/slate
-  dc.fillStyle = '#041c24';
+  // Background
+  dc.fillStyle = isInvalid ? 'rgba(69, 10, 10, 0.92)' : '#041c24';
   roundRect(dc, pillX, pillY, pillW, pillH, pillR);
   dc.fill();
 
-  // Border: Bioluminescent Cyan 1px outline
-  dc.strokeStyle = '#00e5ff';
+  // Border
+  dc.strokeStyle = isInvalid ? '#ef4444' : '#00e5ff';
   dc.lineWidth = 1;
   roundRect(dc, pillX, pillY, pillW, pillH, pillR);
   dc.stroke();
 
-  // Text: Electric Cyan
-  dc.fillStyle = '#00e5ff';
+  // Text
+  dc.fillStyle = isInvalid ? '#fca5a5' : '#00e5ff';
   dc.textAlign = 'center';
   dc.textBaseline = 'middle';
   dc.fillText(textStr, cx, topY);
   dc.restore();
 }
 
+function findNearestRouteSegmentWeb(currLat, currLon, cosLat, headingRad) {
+  const N = simRoute.length;
+  let minDist = Infinity;
+  let minScore = Infinity;
+
+  const hx = Math.sin(headingRad);
+  const hy = Math.cos(headingRad);
+  const startSearch = Math.max(0, simState.segIdx - 2);
+  const endSearch = Math.min(N - 2, simState.segIdx + 4);
+
+  for (let pass = 0; pass < 2; pass++) {
+    const loopStart = pass === 0 ? startSearch : 0;
+    const loopEnd = pass === 0 ? endSearch : N - 2;
+
+    for (let i = loopStart; i <= loopEnd; i++) {
+      if (pass === 1 && i >= startSearch && i <= endSearch) continue;
+      const pA = simRoute[i];
+      const pB = simRoute[i + 1];
+
+      const ax = (pA.lon - currLon) * 111319.5 * cosLat;
+      const ay = (pA.lat - currLat) * 111132.9;
+      const bx = (pB.lon - currLon) * 111319.5 * cosLat;
+      const by = (pB.lat - currLat) * 111132.9;
+
+      const vx = bx - ax;
+      const vy = by - ay;
+      const segLenSq = vx * vx + vy * vy;
+
+      let d = 0;
+      if (segLenSq < 0.001) {
+        d = Math.hypot(ax, ay);
+      } else {
+        const t = Math.max(0, Math.min(1, (-ax * vx - ay * vy) / segLenSq));
+        d = Math.hypot(ax + t * vx, ay + t * vy);
+      }
+
+      // Continuity hysteresis + Heading-weighted penalty for opposite direction (> 90 deg)
+      let score = i === simState.segIdx || i === simState.segIdx + 1 ? d * 0.8 : d;
+      if (segLenSq >= 0.01) {
+        const segLen = Math.sqrt(segLenSq);
+        const cosTheta = (hx * vx + hy * vy) / segLen;
+        if (cosTheta < 0) {
+          score += 30.0 * -cosTheta;
+        }
+      }
+
+      if (score < minScore) {
+        minScore = score;
+        minDist = d;
+      }
+    }
+
+    if (minDist <= 45.0) break;
+  }
+
+  return minDist;
+}
+
 function drawWatchScreen() {
   if (!watchCtx) return;
   const dc = watchCtx;
-  const w = 416,
-    h = 416;
-  const cx = 208,
-    cy = 208;
+  const w = 416;
+  const h = simState.fieldHeight || 416;
+  const cx = 208;
+  const cy = Math.round(h / 2);
+
+  dc.fillStyle = '#000000';
+  dc.fillRect(0, 0, 416, 416);
+
+  dc.save();
+  dc.beginPath();
+  dc.rect(0, 0, w, h);
+  dc.clip();
+
+  try {
+    drawWatchScreenContent(dc, w, h, cx, cy);
+  } finally {
+    dc.restore();
+  }
+
+  if (h < 416) {
+    dc.save();
+    dc.fillStyle = '#090d16';
+    dc.fillRect(0, h, w, 416 - h);
+    dc.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+    dc.lineWidth = 2;
+    dc.beginPath();
+    dc.moveTo(0, h);
+    dc.lineTo(w, h);
+    dc.stroke();
+
+    dc.fillStyle = 'rgba(148, 163, 184, 0.5)';
+    dc.font = '600 13px -apple-system, sans-serif';
+    dc.textAlign = 'center';
+    dc.textBaseline = 'middle';
+    dc.fillText(`OTHER DATA FIELD (${w}×${416 - h})`, cx, h + (416 - h) * 0.35);
+    dc.restore();
+  }
+}
+
+function drawWatchScreenContent(dc, w, h, cx, cy) {
   const mapRange = simState.mapRange || 175;
   const ZOOM_SCALE = cx / mapRange;
   const OFF_COURSE_THRESHOLD_M = 35.0;
@@ -1406,62 +1536,7 @@ function drawWatchScreen() {
   const sinH = Math.sin(heading);
   const cosH = Math.cos(heading);
 
-  const N = simRoute.length;
-  let minDist = Infinity;
-
-  const startSearch = Math.max(0, simState.segIdx - 2);
-  const endSearch = Math.min(N - 2, simState.segIdx + 4);
-
-  for (let i = startSearch; i <= endSearch; i++) {
-    const pA = simRoute[i];
-    const pB = simRoute[i + 1];
-
-    const ax = (pA.lon - currLon) * 111319.5 * cosLat;
-    const ay = (pA.lat - currLat) * 111132.9;
-    const bx = (pB.lon - currLon) * 111319.5 * cosLat;
-    const by = (pB.lat - currLat) * 111132.9;
-
-    const vx = bx - ax;
-    const vy = by - ay;
-    const segLenSq = vx * vx + vy * vy;
-
-    let d = 0;
-    if (segLenSq < 0.001) {
-      d = Math.hypot(ax, ay);
-    } else {
-      const t = Math.max(0, Math.min(1, (-ax * vx - ay * vy) / segLenSq));
-      d = Math.hypot(ax + t * vx, ay + t * vy);
-    }
-
-    if (d < minDist) minDist = d;
-  }
-
-  if (minDist > 45.0) {
-    for (let i = 0; i < N - 1; i++) {
-      if (i >= startSearch && i <= endSearch) continue;
-      const pA = simRoute[i];
-      const pB = simRoute[i + 1];
-
-      const ax = (pA.lon - currLon) * 111319.5 * cosLat;
-      const ay = (pA.lat - currLat) * 111132.9;
-      const bx = (pB.lon - currLon) * 111319.5 * cosLat;
-      const by = (pB.lat - currLat) * 111132.9;
-
-      const vx = bx - ax;
-      const vy = by - ay;
-      const segLenSq = vx * vx + vy * vy;
-
-      let d = 0;
-      if (segLenSq < 0.001) {
-        d = Math.hypot(ax, ay);
-      } else {
-        const t = Math.max(0, Math.min(1, (-ax * vx - ay * vy) / segLenSq));
-        d = Math.hypot(ax + t * vx, ay + t * vy);
-      }
-
-      if (d < minDist) minDist = d;
-    }
-  }
+  const minDist = findNearestRouteSegmentWeb(currLat, currLon, cosLat, simState.targetHeadingRad || heading);
 
   const pStart = simRoute[0];
   const sax = (pStart.lon - currLon) * 111319.5 * cosLat;
@@ -1765,6 +1840,10 @@ function drawWatchScreen() {
       const badgeY = 26;
 
       const isImminent = turn.dist <= 20;
+      if (isImminent && simState.lastVibedCornerIdx !== turn.cornerIdx) {
+        simState.lastVibedCornerIdx = turn.cornerIdx;
+        triggerHaptic('vibe', `Imminent Turn (${turn.label})`);
+      }
       dc.fillStyle = isImminent ? 'rgba(217, 119, 6, 0.95)' : 'rgba(15, 23, 42, 0.92)';
       roundRect(dc, badgeX, badgeY, badgeW, badgeH, 8);
       dc.fill();
@@ -1819,6 +1898,60 @@ function drawWatchScreen() {
     dc.font = 'bold 13px -apple-system, sans-serif';
     dc.textAlign = 'center';
     dc.fillText('GPS ART COMPLETED', cx, badgeY + 19);
+    dc.restore();
+  }
+
+  // Truncation warning pill at top when no higher-priority alert banner is active
+  if (simState.routeStatus === 'TRUNCATED' && !isOffCourse && !simState.hasFinished && !(simState.showTurnCue && getNextTurnCue()?.dist <= 60)) {
+    dc.save();
+    const warnStr = `TRUNCATED 150/${simState.truncatedTotalPts}`;
+    dc.font = 'bold 11px -apple-system, sans-serif';
+    const wW = dc.measureText(warnStr).width + 20;
+    const wH = 22;
+    const wX = cx - wW / 2;
+    const wY = 26;
+    dc.fillStyle = 'rgba(120, 53, 15, 0.92)';
+    roundRect(dc, wX, wY, wW, wH, wH / 2);
+    dc.fill();
+    dc.strokeStyle = '#fbbf24';
+    dc.lineWidth = 1;
+    roundRect(dc, wX, wY, wW, wH, wH / 2);
+    dc.stroke();
+    dc.fillStyle = '#fde68a';
+    dc.textAlign = 'center';
+    dc.textBaseline = 'middle';
+    dc.fillText(warnStr, cx, wY + wH / 2);
+    dc.restore();
+  }
+
+  // Bottom HUD pill: Remaining Distance & Completion %
+  if (simState.showProgress && simState.totalRouteDist > 0 && simState.cumDistances && simState.cumDistances.length >= 2) {
+    const segStartD = simState.cumDistances[simState.segIdx] || 0;
+    const segEndD = simState.cumDistances[simState.segIdx + 1] ?? segStartD;
+    const coveredM = simState.hasFinished
+      ? simState.totalRouteDist
+      : segStartD + (segEndD - segStartD) * simState.segProgress;
+    const remM = Math.max(0, simState.totalRouteDist - coveredM);
+    const pct = simState.hasFinished ? 100 : Math.min(100, Math.round((coveredM / simState.totalRouteDist) * 100));
+    const hudText = simState.hasFinished ? '0 m · 100%' : `${formatDistanceWeb(remM)} · ${pct}%`;
+
+    dc.save();
+    dc.font = 'bold 13px -apple-system, sans-serif';
+    const pillW = dc.measureText(hudText).width + 24;
+    const pillH = 24;
+    const pillX = cx - pillW / 2;
+    const pillY = (h < 240 ? h - 20 : h * 0.87) - pillH / 2;
+    dc.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    roundRect(dc, pillX, pillY, pillW, pillH, pillH / 2);
+    dc.fill();
+    dc.strokeStyle = simState.hasFinished ? '#84cc16' : 'rgba(56, 189, 248, 0.55)';
+    dc.lineWidth = 1;
+    roundRect(dc, pillX, pillY, pillW, pillH, pillH / 2);
+    dc.stroke();
+    dc.fillStyle = simState.hasFinished ? '#a3e635' : '#e2e8f0';
+    dc.textAlign = 'center';
+    dc.textBaseline = 'middle';
+    dc.fillText(hudText, cx, pillY + pillH / 2);
     dc.restore();
   }
 

@@ -1,0 +1,174 @@
+name: CI Verification & IQ Packaging
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  web-and-config-tests:
+    name: Web Engine, Settings Sync & XML Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax-check web JavaScript files
+        run: |
+          for f in web/js/*.js; do
+            echo "Checking $f"
+            node --check "$f"
+          done
+
+      - name: Run GPX engine & settings sync tests
+        run: node --test tests/*.test.mjs
+
+      - name: Validate Garmin XML resources
+        run: |
+          python3 -c '
+          import glob, xml.etree.ElementTree as ET
+          files = ["manifest.xml"] + sorted(glob.glob("resources/**/*.xml", recursive=True))
+          for f in files:
+              ET.parse(f)
+              print(f"OK: {f}")
+          '
+
+  garmin-ciq-build:
+    name: Garmin Connect IQ Compile Check (venu2plus)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate ephemeral key for compile check
+        run: |
+          if [ ! -f developer_key ]; then
+            openssl genrsa -out developer_key.pem 4096
+            openssl pkcs8 -topk8 -inform PEM -outform DER -in developer_key.pem -out developer_key -nocrypt
+            rm -f developer_key.pem
+          fi
+
+      - name: Compile release .prg (venu2plus)
+        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        with:
+          projectJungle: ./monkey.jungle
+          developerKey: ./developer_key
+          outputPath: ./bin/hekimkoo-ci.prg
+          device: venu2plus
+          typeCheck: "1"
+          extraArgs: "-w -r"
+
+      - name: Compile unit-test .prg (-t)
+        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        with:
+          projectJungle: ./monkey.jungle
+          developerKey: ./developer_key
+          outputPath: ./bin/hekimkoo-test-ci.prg
+          device: venu2plus
+          typeCheck: "1"
+          extraArgs: "-w -t"
+
+  garmin-iq-package:
+    name: Build Signed .iq Package (Beta / Release)
+    needs: [web-and-config-tests, garmin-ciq-build]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: key
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Decode GARMIN_DEVELOPER_KEY_BASE64
+        env:
+          KEY_B64: ${{ secrets.GARMIN_DEVELOPER_KEY_BASE64 }}
+        run: |
+          if [ -z "$KEY_B64" ]; then
+            echo "::error::Missing Environment secret GARMIN_DEVELOPER_KEY_BASE64!"
+            exit 1
+          fi
+          printf '%s' "$KEY_B64" | base64 -d > ./developer_key
+          chmod 600 ./developer_key
+
+      - name: Configure Beta or Release manifest
+        id: pkg
+        env:
+          RELEASE_APP_ID: ${{ vars.GARMIN_RELEASE_APP_ID || secrets.GARMIN_RELEASE_APP_ID }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+
+          ref = os.environ.get("GITHUB_REF", "")
+          run_num = os.environ.get("GITHUB_RUN_NUMBER", "1")
+          release_app_id = os.environ.get("RELEASE_APP_ID", "").strip()
+          is_release = ref.startswith("refs/tags/v")
+
+          with open("manifest.xml", "r", encoding="utf-8") as f:
+              manifest = f.read()
+
+          if is_release:
+              if not release_app_id:
+                  raise SystemExit("::error::Missing GARMIN_RELEASE_APP_ID (set in GitHub Environment Variables or Secrets) for release tag build.")
+              if not re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", release_app_id):
+                  raise SystemExit(f"::error::Invalid GARMIN_RELEASE_APP_ID UUID format: {release_app_id}")
+              manifest = re.sub(r'id="[^"]+"', f'id="{release_app_id}"', manifest, count=1)
+
+              tag_ver = ref.replace("refs/tags/v", "", 1).strip()
+              if re.match(r"^\d+\.\d+\.\d+$", tag_ver):
+                  manifest = re.sub(r'version="[^"]+"', f'version="{tag_ver}"', manifest, count=1)
+              channel = "release"
+          else:
+              manifest = re.sub(r'version="[^"]+"', f'version="1.0.{run_num}"', manifest, count=1)
+              with open("resources/strings/strings.xml", "r", encoding="utf-8") as sf:
+                  strings_xml = sf.read()
+              strings_xml = strings_xml.replace(">He-Kim-Koo</string>", ">He-Kim-Koo (Beta)</string>", 1)
+              with open("resources/strings/strings.xml", "w", encoding="utf-8") as sf:
+                  sf.write(strings_xml)
+              channel = "beta"
+
+          with open("manifest.xml", "w", encoding="utf-8") as f:
+              f.write(manifest)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"channel={channel}\n")
+          print(f"Configured channel={channel}")
+          PY
+
+      - name: Export signed .iq package
+        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        with:
+          projectJungle: ./monkey.jungle
+          developerKey: ./developer_key
+          outputPath: ./bin/hekimkoo-${{ steps.pkg.outputs.channel }}.iq
+          device: venu2plus
+          typeCheck: "1"
+          extraArgs: "-e -w -r"
+
+      - name: Export signed .prg (USB sideload)
+        uses: blackshadev/garmin-connectiq-build-action@v9.2.0
+        with:
+          projectJungle: ./monkey.jungle
+          developerKey: ./developer_key
+          outputPath: ./bin/hekimkoo-${{ steps.pkg.outputs.channel }}.prg
+          device: venu2plus
+          typeCheck: "1"
+          extraArgs: "-w -r"
+
+      - name: Upload private CI Artifact (.iq & .prg)
+        uses: actions/upload-artifact@v4
+        with:
+          name: hekimkoo-${{ steps.pkg.outputs.channel }}-package
+          path: |
+            ./bin/hekimkoo-${{ steps.pkg.outputs.channel }}.iq
+            ./bin/hekimkoo-${{ steps.pkg.outputs.channel }}.prg
+          retention-days: 30

@@ -1,22 +1,26 @@
 <strings>
     <string id="AppName">He-Kim-Koo (Route Field)</string>
-    <string id="RouteStringTitle">Route String (Polyline)</string>
+    <string id="RouteStringTitle">[Route] Route String (Polyline)</string>
     <string id="RouteStringPrompt">Paste the encoded Google Polyline string generated from the web converter</string>
-    <string id="MapRangeTitle">Map View Range (Meters)</string>
+    <string id="MapRangeTitle">[Map] Map View Range (Meters)</string>
     <string id="MapRangePrompt">Visible radius from screen center in meters (50 - 1000m, default: 175)</string>
     <string id="MapRangeError">Range must be between 50 and 1000 meters</string>
-    <string id="RouteDirectionTitle">Route Direction</string>
+    <string id="RouteDirectionTitle">[Route] Route Direction</string>
     <string id="RouteDirectionPrompt">Select forward or reverse travel direction</string>
     <string id="DirectionForward">Forward (Original)</string>
     <string id="DirectionReverse">Reverse (Inverted)</string>
-    <string id="ShowDirectionTitle">Show Direction Chevrons</string>
+    <string id="ShowDirectionTitle">[Map] Show Direction Chevrons</string>
     <string id="ShowDirectionPrompt">Toggle display of 50m / 250m directional chevrons</string>
-    <string id="DimCompletedPathTitle">Dim Completed Path</string>
+    <string id="DimCompletedPathTitle">[Map] Dim Completed Path</string>
     <string id="DimCompletedPathPrompt">Dim traversed path segments while keeping upcoming route bright cyan</string>
-    <string id="ShowTurnCueTitle">Upcoming Turn Cue (&lt;60m)</string>
+    <string id="ShowTurnCueTitle">[HUD &amp; Alerts] Upcoming Turn Cue (&lt;60m)</string>
     <string id="ShowTurnCuePrompt">Display compact turn indicator badge when approaching corners</string>
-    <string id="ShowCornerAnchorsTitle">Corner Anchor Dots</string>
+    <string id="ShowCornerAnchorsTitle">[Map] Corner Anchor Dots</string>
     <string id="ShowCornerAnchorsPrompt">Display glowing beacon dots at sharp turning intersections</string>
+    <string id="ShowProgressTitle">[HUD &amp; Alerts] Remaining &amp; Progress %</string>
+    <string id="ShowProgressPrompt">Display remaining distance and completion percentage at bottom of screen</string>
+    <string id="EnableVibrationTitle">[HUD &amp; Alerts] Haptic Vibration Alerts</string>
+    <string id="EnableVibrationPrompt">Vibrate briefly for imminent turns (&lt;=20m), off-course alerts, and completion</string>
     <string id="NoRoute">NO ROUTE</string>
     <string id="PasteSettings">PASTE IN APP SETTINGS</string>
     <string id="WaitingGps">WAITING FOR GPS</string>

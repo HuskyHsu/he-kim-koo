@@ -6,5 +6,7 @@
     <property id="dimCompletedPath" type="boolean">true</property>
     <property id="showTurnCue" type="boolean">true</property>
     <property id="showCornerAnchors" type="boolean">true</property>
+    <property id="showProgress" type="boolean">true</property>
+    <property id="enableVibration" type="boolean">true</property>
 </properties>
 

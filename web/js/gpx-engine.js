@@ -19,18 +19,117 @@ function calcDistanceMeters(p1, p2) {
 }
 
 /**
+ * Removes GPS micro-jitter (<4m clusters) and tiny corner knots/pigtails
+ * (e.g. a small loop at a corner causing 3 left turns instead of 1 right turn),
+ * while preserving genuine 180-degree out-and-back hairpin turns.
+ */
+function cleanCornerKnots(points, minStepMeters = 4.0, maxLoopMeters = 55.0, maxChordMeters = 14.0) {
+  if (!points || points.length < 4) return points;
+
+  // 1. Remove sub-4m GPS cluster jitter (always keep start & end)
+  const decimated = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    if (calcDistanceMeters(decimated[decimated.length - 1], points[i]) >= minStepMeters) {
+      decimated.push(points[i]);
+    }
+  }
+  decimated.push(points[points.length - 1]);
+
+  if (decimated.length < 4) return decimated;
+
+  // 2. Collapse small corner knots/loops where path detours <= 55m and returns within 14m
+  const cleaned = [];
+  let i = 0;
+  const n = decimated.length;
+
+  while (i < n) {
+    cleaned.push(decimated[i]);
+    if (i >= n - 3) {
+      i++;
+      continue;
+    }
+
+    let arcLen = 0;
+    let bestJump = -1;
+    const maxJ = Math.min(n - 1, i + 16);
+
+    for (let j = i + 1; j <= maxJ; j++) {
+      arcLen += calcDistanceMeters(decimated[j - 1], decimated[j]);
+      if (arcLen > maxLoopMeters) break;
+
+      if (j === i + 2) {
+        // 2-segment out-and-back overshoot spike at a corner (e.g. <= 15m spur)
+        const chordDist = calcDistanceMeters(decimated[i], decimated[j]);
+        if (arcLen <= 30.0 && chordDist <= 6.0 && arcLen >= Math.max(6.0, chordDist * 2.5)) {
+          let isHairpin = false;
+          if (chordDist > 1.5 && i > 0 && j < n - 1) {
+            const cosLat = Math.cos((decimated[i].lat * Math.PI) / 180);
+            const inX = (decimated[i].lon - decimated[i - 1].lon) * cosLat;
+            const inY = decimated[i].lat - decimated[i - 1].lat;
+            const outX = (decimated[j + 1].lon - decimated[j].lon) * cosLat;
+            const outY = decimated[j + 1].lat - decimated[j].lat;
+            const inMag = Math.hypot(inX, inY);
+            const outMag = Math.hypot(outX, outY);
+            if (inMag > 0 && outMag > 0 && (inX * outX + inY * outY) / (inMag * outMag) < -0.75) {
+              isHairpin = true;
+            }
+          }
+          if (!isHairpin) {
+            bestJump = chordDist < 2.0 && j + 1 < n ? j + 1 : j;
+          }
+        }
+      } else if (j >= i + 3) {
+        const chordDist = calcDistanceMeters(decimated[i], decimated[j]);
+        if (chordDist <= maxChordMeters && arcLen >= Math.max(15.0, chordDist * 2.2)) {
+          // Protect genuine 180-deg out-and-back hairpins
+          let isHairpin = false;
+          if (i > 0 && j < n - 1) {
+            const cosLat = Math.cos((decimated[i].lat * Math.PI) / 180);
+            const inX = (decimated[i].lon - decimated[i - 1].lon) * cosLat;
+            const inY = decimated[i].lat - decimated[i - 1].lat;
+            const outX = (decimated[j + 1].lon - decimated[j].lon) * cosLat;
+            const outY = decimated[j + 1].lat - decimated[j].lat;
+            const inMag = Math.hypot(inX, inY);
+            const outMag = Math.hypot(outX, outY);
+            if (inMag > 0 && outMag > 0) {
+              const dot = (inX * outX + inY * outY) / (inMag * outMag);
+              if (dot < -0.75) {
+                isHairpin = true;
+              }
+            }
+          }
+
+          if (!isHairpin) {
+            bestJump = chordDist < 2.0 && j + 1 < n ? j + 1 : j;
+          }
+        }
+      }
+    }
+
+    i = bestJump !== -1 ? bestJump : i + 1;
+  }
+
+  return cleaned;
+}
+
+/**
  * Smart simplification preserving sharp corner anchors (>42 deg)
  * and iteratively targeting 100~130 points for Garmin memory bounds.
  */
 function smartSimplifyRoute(points, minTarget = 100, maxTarget = 130) {
+  points = cleanCornerKnots(points);
   if (points.length <= maxTarget) return points;
 
   const anchors = new Set([0, points.length - 1]);
   for (let i = 1; i < points.length - 1; i++) {
-    const v1 = { x: points[i].lon - points[i - 1].lon, y: points[i].lat - points[i - 1].lat };
+    const cosLat = Math.cos((points[i].lat * Math.PI) / 180);
+    const v1 = {
+      x: (points[i].lon - points[i - 1].lon) * cosLat,
+      y: points[i].lat - points[i - 1].lat,
+    };
     const v2 = {
-      x: points[i + 1].lon - points[i].lon,
-      y: points[i + 1].lat - points[i + 1].lat,
+      x: (points[i + 1].lon - points[i].lon) * cosLat,
+      y: points[i + 1].lat - points[i].lat,
     };
     const dot = v1.x * v2.x + v1.y * v2.y;
     const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
@@ -283,9 +382,9 @@ function parseGpx(xmlText) {
   return points;
 }
 
-// Expose on window
-window.GpxEngine = {
+const gpxEngineExports = {
   calcDistanceMeters,
+  cleanCornerKnots,
   smartSimplifyRoute,
   rdpWithAnchors,
   simplifySegment,
@@ -297,14 +396,22 @@ window.GpxEngine = {
   parseGpx,
 };
 
-window.calcDistanceMeters = calcDistanceMeters;
-window.smartSimplifyRoute = smartSimplifyRoute;
-window.rdpWithAnchors = rdpWithAnchors;
-window.simplifySegment = simplifySegment;
-window.pointToSegmentDistanceMeters = pointToSegmentDistanceMeters;
-window.encodeGooglePolyline = encodeGooglePolyline;
-window.decodeGooglePolyline = decodeGooglePolyline;
-window.encodeSigned = encodeSigned;
-window.extractGpxSummary = extractGpxSummary;
-window.parseGpx = parseGpx;
+if (typeof window !== 'undefined') {
+  window.GpxEngine = gpxEngineExports;
+  window.calcDistanceMeters = calcDistanceMeters;
+  window.cleanCornerKnots = cleanCornerKnots;
+  window.smartSimplifyRoute = smartSimplifyRoute;
+  window.rdpWithAnchors = rdpWithAnchors;
+  window.simplifySegment = simplifySegment;
+  window.pointToSegmentDistanceMeters = pointToSegmentDistanceMeters;
+  window.encodeGooglePolyline = encodeGooglePolyline;
+  window.decodeGooglePolyline = decodeGooglePolyline;
+  window.encodeSigned = encodeSigned;
+  window.extractGpxSummary = extractGpxSummary;
+  window.parseGpx = parseGpx;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = gpxEngineExports;
+}
 
