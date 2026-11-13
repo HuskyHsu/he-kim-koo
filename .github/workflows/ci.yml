@@ -116,19 +116,27 @@ jobs:
           with open("manifest.xml", "r", encoding="utf-8") as f:
               manifest = f.read()
 
+          def set_app_attr(xml_text, attr, value):
+              return re.sub(
+                  rf'(<iq:application\b[^>]*?\b{attr}=")[^"]+(")',
+                  rf'\g<1>{value}\g<2>',
+                  xml_text,
+                  count=1,
+              )
+
           if is_release:
               if not release_app_id:
                   raise SystemExit("::error::Missing GARMIN_RELEASE_APP_ID (set in GitHub Environment Variables or Secrets) for release tag build.")
               if not re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", release_app_id):
                   raise SystemExit(f"::error::Invalid GARMIN_RELEASE_APP_ID UUID format: {release_app_id}")
-              manifest = re.sub(r'id="[^"]+"', f'id="{release_app_id}"', manifest, count=1)
+              manifest = set_app_attr(manifest, "id", release_app_id)
 
               tag_ver = ref.replace("refs/tags/v", "", 1).strip()
               if re.match(r"^\d+\.\d+\.\d+$", tag_ver):
-                  manifest = re.sub(r'version="[^"]+"', f'version="{tag_ver}"', manifest, count=1)
+                  manifest = set_app_attr(manifest, "version", tag_ver)
               channel = "release"
           else:
-              manifest = re.sub(r'version="[^"]+"', f'version="1.0.{run_num}"', manifest, count=1)
+              manifest = set_app_attr(manifest, "version", f"1.0.{run_num}")
               with open("resources/strings/strings.xml", "r", encoding="utf-8") as sf:
                   strings_xml = sf.read()
               strings_xml = strings_xml.replace(">He-Kim-Koo</string>", ">He-Kim-Koo (Beta)</string>", 1)
