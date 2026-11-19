@@ -1,4 +1,4 @@
-.PHONY: all prg iq clean key web help
+.PHONY: all prg iq clean key web web-v2 help
 
 # Default target builds both PRG and IQ
 all:
@@ -17,6 +17,10 @@ web:
 	@echo "run He-Kim-Koo frontend web: http://localhost:8080"
 	@python3 -m http.server 8080 --directory web
 
+# Start local web-v2 workstation (Vite + React)
+web-v2:
+	cd web-v2 && npm run dev -- --host
+
 # Remove compiled artifacts
 clean:
 	@./scripts/build.sh clean
@@ -28,5 +32,6 @@ key:
 help:
 	@./scripts/build.sh help
 	@echo "  make web    - Launch web companion workstation (http://localhost:8080)"
+	@echo "  make web-v2 - Launch web-v2 React/MapLibre workstation (Vite dev server)"
 
 
