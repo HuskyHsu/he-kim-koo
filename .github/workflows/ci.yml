@@ -42,6 +42,37 @@ jobs:
               print(f"OK: {f}")
           '
 
+  web-v2-build-and-test:
+    name: Web v2 Typecheck, Unit Tests & Production Build
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: web-v2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web-v2/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
   garmin-ciq-build:
     name: Garmin Connect IQ Compile Check (venu2plus)
     runs-on: ubuntu-24.04
