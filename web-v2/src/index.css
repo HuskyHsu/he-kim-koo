@@ -16,6 +16,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.font-brand {
+  font-family: "Fredoka", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 /* Clean editorial range slider styling */
 input[type="range"] {
   -webkit-appearance: none;

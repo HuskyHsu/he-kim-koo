@@ -264,11 +264,7 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 lg:flex lg:h-dvh lg:flex-col lg:overflow-hidden">
-      <Header
-        activeProfile={activeProfile}
-        onSelectProfile={handleSelectProfile}
-        onOpenGuide={() => setGuideOpen(true)}
-      />
+      <Header onOpenGuide={() => setGuideOpen(true)} />
 
       {/* Main Workbench:
           Mobile (<1024px): Step 1 -> Visual Stage -> Step 2 -> Step 3 (single page scroll)
@@ -363,10 +359,10 @@ export function App() {
 
             {/* Stage Canvas */}
             <div
-              className={`relative flex-1 ${
+              className={`relative ${
                 activeTab === 'map'
-                  ? 'h-[340px] sm:h-[420px] lg:h-auto lg:min-h-0'
-                  : 'min-h-[420px] lg:h-auto lg:min-h-0 lg:overflow-y-auto'
+                  ? 'h-[360px] shrink-0 sm:h-[420px] lg:h-auto lg:min-h-0 lg:flex-1'
+                  : 'lg:h-auto lg:min-h-0 lg:flex-1 lg:overflow-hidden'
               }`}
             >
               {activeTab === 'map' ? (
@@ -389,8 +385,6 @@ export function App() {
       </main>
 
       <MobileStickyBar
-        activeTab={activeTab}
-        onChangeTab={setActiveTab}
         onCopy={handleCopyRouteCode}
         copied={copied}
         hasRouteCode={routeCode.length > 0}

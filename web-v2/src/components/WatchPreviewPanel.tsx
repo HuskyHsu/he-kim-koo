@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  ChevronDown,
   Pause,
   Play,
   RotateCcw,
@@ -55,33 +54,33 @@ interface DisplayToggleItem {
 const DISPLAY_TOGGLES: DisplayToggleItem[] = [
   {
     key: 'showDirection',
-    label: 'Show Direction Chevrons',
-    hint: 'Draw directional arrows along the track',
+    label: 'Direction Chevrons',
+    hint: 'Arrows along the route',
   },
   {
     key: 'dimCompletedPath',
     label: 'Dim Completed Path',
-    hint: 'Fade already-run segments behind you',
+    hint: 'Fade already-run segments',
   },
   {
     key: 'showCornerAnchors',
     label: 'Corner Anchor Dots',
-    hint: 'Highlight sharp turns (>42°) along the route',
+    hint: 'Highlight sharp turns (>42°)',
   },
   {
     key: 'showTurnCue',
     label: 'Upcoming Turn Cue',
-    hint: 'Display next turn direction at top of watch',
+    hint: 'Next turn direction at top',
   },
   {
     key: 'showProgress',
     label: 'Remaining & Progress %',
-    hint: 'Show remaining distance and completion %',
+    hint: 'Distance left & completion %',
   },
   {
     key: 'enableVibration',
     label: 'Haptic Vibration Alerts',
-    hint: 'Vibrate on off-course drift or key turns',
+    hint: 'Vibrate on drift or key turns',
   },
 ];
 
@@ -97,8 +96,7 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<WatchSimulatorEngine | null>(null);
-  const [displayOpen, setDisplayOpen] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(false);
+  const [controlTab, setControlTab] = useState<'display' | 'simulator'>('display');
   const [simState, setSimState] = useState({
     isPlaying: false,
     progressRatio: 0,
@@ -130,22 +128,18 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync watch profile
   useEffect(() => {
     engineRef.current?.setProfile(activeProfile);
   }, [activeProfile]);
 
-  // Sync ordered route points
   useEffect(() => {
     engineRef.current?.setRoute(orderedPoints, isNoRoute);
   }, [orderedPoints, isNoRoute]);
 
-  // Sync watch settings
   useEffect(() => {
     engineRef.current?.setSettings(settings);
   }, [settings]);
 
-  // Sync simulator debug options
   useEffect(() => {
     engineRef.current?.setDebug(debug);
   }, [debug]);
@@ -172,104 +166,89 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
   const isMip = activeProfile.displayType === 'MIP';
 
   return (
-    <div className="subtle-scroll flex h-full flex-col justify-between overflow-y-auto bg-slate-50/70 p-4 sm:p-6">
-      {/* Top Bar: Watch Model Selector + Spec Badge */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <div className="relative flex items-center">
-          <Watch className="pointer-events-none absolute left-2.5 h-4 w-4 text-slate-400" />
-          <select
-            aria-label="Preview watch model"
-            value={activeProfile.id}
-            onChange={(e) => onSelectProfile(e.target.value)}
-            className="h-9 cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white pl-8 pr-7 text-xs font-medium text-slate-800 shadow-2xs transition-colors hover:border-slate-300 focus:border-emerald-600 focus:outline-none"
-          >
-            {WATCH_PROFILES.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.status === 'preview' ? ' (Preview)' : ''}
-              </option>
-            ))}
-          </select>
-          <svg
-            className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-slate-400"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M4 6l4 4 4-4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
+    <div className="flex h-full flex-col bg-slate-50/60 lg:flex-row lg:overflow-hidden">
+      {/* Left: Fixed Watch Stage + Playback Bar */}
+      <div className="flex flex-1 flex-col justify-between p-4 sm:p-5 lg:min-w-0 lg:overflow-hidden">
+        {/* Top Bar: Watch Model Selector + Spec Badge */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="relative flex items-center">
+            <Watch className="pointer-events-none absolute left-2.5 h-4 w-4 text-slate-400" />
+            <select
+              aria-label="Preview watch model"
+              value={activeProfile.id}
+              onChange={(e) => onSelectProfile(e.target.value)}
+              className="h-9 cursor-pointer appearance-none rounded-lg border border-slate-200 bg-white pl-8 pr-7 text-xs font-medium text-slate-800 shadow-2xs transition-colors hover:border-slate-300 focus:border-emerald-600 focus:outline-none"
+            >
+              {WATCH_PROFILES.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.status === 'preview' ? ' (Preview)' : ''}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-slate-400"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M4 6l4 4 4-4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
 
-        <div className="flex items-center gap-1.5">
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-mono text-[11px] font-medium text-slate-600 tabular-nums">
-            {activeProfile.screenSize}×{activeProfile.screenSize} · {activeProfile.displayType}
-          </span>
-          {activeProfile.status === 'preview' && (
-            <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200/80">
-              Preview
+          <div className="flex items-center gap-1.5">
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-mono text-[11px] font-medium text-slate-600 tabular-nums">
+              {activeProfile.screenSize}×{activeProfile.screenSize} · {activeProfile.displayType}
             </span>
-          )}
+            {activeProfile.status === 'preview' && (
+              <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200/80">
+                Preview
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Center: Minimalist Watch Bezel + Canvas */}
-      <div className="my-5 flex flex-col items-center justify-center">
-        <div className="relative flex items-center justify-center">
-          {/* Subtle hardware side buttons */}
+        {/* Center: Clean Circular Watch Bezel + Canvas */}
+        <div className="my-5 flex flex-1 flex-col items-center justify-center lg:my-2">
           <div
-            aria-hidden="true"
-            className="absolute -right-2 top-[26%] h-9 w-2 rounded-r-md bg-slate-700 shadow-xs"
-          />
-          <div
-            aria-hidden="true"
-            className="absolute -right-2 bottom-[26%] h-9 w-2 rounded-r-md bg-slate-700 shadow-xs"
-          />
-
-          {/* Outer Bezel */}
-          <div
-            className={`relative rounded-full p-3.5 shadow-[0_14px_34px_rgba(15,23,42,0.16)] ring-1 ${
+            className={`rounded-full p-3 shadow-[0_14px_34px_rgba(15,23,42,0.16)] ring-1 ${
               isMip
                 ? 'bg-gradient-to-b from-slate-700 to-slate-800 ring-slate-600/80'
                 : 'bg-gradient-to-b from-slate-800 to-slate-950 ring-slate-700/80'
             }`}
           >
-            {/* Inner subtle metallic rim */}
             <div className="rounded-full bg-black p-1.5 ring-1 ring-white/10">
               <canvas
                 ref={canvasRef}
                 width={activeProfile.screenSize}
                 height={activeProfile.screenSize}
-                className="block h-[240px] w-[240px] rounded-full sm:h-[300px] sm:w-[300px] lg:h-[330px] lg:w-[330px]"
+                className="block h-[232px] w-[232px] rounded-full sm:h-[280px] sm:w-[280px] xl:h-[316px] xl:w-[316px]"
               />
             </div>
           </div>
+
+          {simState.isOffCourse && (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>Off-Course Alert Active</span>
+            </div>
+          )}
         </div>
 
-        {/* Off-course status pill */}
-        {simState.isOffCourse && (
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 ring-1 ring-red-200">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span>Off-Course Alert Active</span>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Controls: Playback + Scrubber + Collapsible Debug Tools */}
-      <div className="mx-auto w-full max-w-md space-y-3">
-        {/* Playback & Timeline Scrubber */}
-        <div className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-2xs">
+        {/* Bottom: Playback & Timeline Scrubber */}
+        <div className="mx-auto w-full max-w-sm rounded-xl border border-slate-200/90 bg-white p-3 shadow-2xs">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={handleTogglePlay}
               aria-label={simState.isPlaying ? 'Pause simulation' : 'Play simulation'}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#122C64] text-white transition-colors hover:bg-[#0d214d]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#122C64] text-white transition-colors hover:bg-[#0d214d]"
             >
               {simState.isPlaying ? (
                 <Pause className="h-4 w-4" />
@@ -282,7 +261,7 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
               type="button"
               onClick={handleReset}
               aria-label="Reset simulation"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <RotateCcw className="h-4 w-4" />
             </button>
@@ -309,33 +288,54 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Collapsible Watch Display Settings (Preview Only) */}
-        <div className="rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setDisplayOpen((v) => !v)}
-            aria-expanded={displayOpen}
-            className="flex min-h-[36px] w-full items-center justify-between text-xs font-medium text-slate-600 transition-colors hover:text-slate-900"
+      {/* Right: Always-Visible Side Inspector (Display | Simulator) */}
+      <aside className="flex flex-col border-t border-slate-200/80 bg-white lg:w-[296px] lg:shrink-0 lg:border-t-0 lg:border-l xl:w-[316px]">
+        {/* Tab Switcher */}
+        <div className="shrink-0 border-b border-slate-100 px-4 py-3">
+          <div
+            className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
+            role="tablist"
+            aria-label="Watch preview controls"
           >
-            <span className="flex items-center gap-2">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
-              <span>Watch Display Settings</span>
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                {settings.mapRange}m
-              </span>
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
-                displayOpen ? 'rotate-180' : ''
+            <button
+              type="button"
+              role="tab"
+              aria-selected={controlTab === 'display'}
+              onClick={() => setControlTab('display')}
+              className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all ${
+                controlTab === 'display'
+                  ? 'bg-white text-slate-900 shadow-2xs ring-1 ring-slate-200/80'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
-            />
-          </button>
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Display</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={controlTab === 'simulator'}
+              onClick={() => setControlTab('simulator')}
+              className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all ${
+                controlTab === 'simulator'
+                  ? 'bg-white text-slate-900 shadow-2xs ring-1 ring-slate-200/80'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              <span>Simulator</span>
+            </button>
+          </div>
+        </div>
 
-          {displayOpen && (
-            <div className="mt-2.5 space-y-3.5 border-t border-slate-100 pt-3 pb-1.5">
-              <p className="text-[11px] text-slate-400">
-                Preview of Garmin Connect display options — does not affect the Route Code.
+        {/* Tab Body */}
+        <div className="subtle-scroll flex-1 overflow-y-auto px-4 py-4">
+          {controlTab === 'display' ? (
+            <div className="space-y-4">
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                Preview of Garmin Connect watch display options — does not affect the Route Code.
               </p>
 
               {/* Watch Map Range */}
@@ -343,29 +343,13 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
                 <div className="mb-1.5 flex items-center justify-between">
                   <label
                     htmlFor="watch-map-range"
-                    className="text-[11px] font-medium text-slate-600"
+                    className="text-xs font-medium text-slate-700"
                   >
-                    Watch Map Range
+                    Map Range
                   </label>
-                  <div className="flex items-center gap-1.5">
-                    {RANGE_PRESETS.map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => onChangeSettings({ mapRange: preset })}
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums transition-colors ${
-                          settings.mapRange === preset
-                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {preset}m
-                      </button>
-                    ))}
-                    <span className="ml-1 font-mono text-[11px] font-semibold text-slate-800 tabular-nums">
-                      {settings.mapRange}m
-                    </span>
-                  </div>
+                  <span className="font-mono text-xs font-semibold text-slate-900 tabular-nums">
+                    {settings.mapRange}m
+                  </span>
                 </div>
                 <input
                   id="watch-map-range"
@@ -377,16 +361,32 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
                   onChange={(e) => onChangeSettings({ mapRange: Number(e.target.value) })}
                   className="h-1.5 w-full cursor-pointer accent-emerald-600"
                 />
+                <div className="mt-2 flex items-center justify-end gap-1.5">
+                  {RANGE_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => onChangeSettings({ mapRange: preset })}
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums transition-colors ${
+                        settings.mapRange === preset
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {preset}m
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* 6 Watch Display Toggles */}
-              <div className="space-y-2 border-t border-slate-100 pt-2.5">
+              <div className="space-y-1.5 border-t border-slate-100 pt-3">
                 {DISPLAY_TOGGLES.map((item) => {
                   const checked = settings[item.key];
                   return (
                     <label
                       key={item.key}
-                      className="flex min-h-[36px] cursor-pointer items-center justify-between gap-3 rounded-lg px-1 py-0.5 transition-colors hover:bg-slate-50"
+                      className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-slate-50"
                     >
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-slate-800">{item.label}</div>
@@ -412,86 +412,63 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
                 })}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Collapsible Simulator Debug Tools */}
-        <div className="rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setDebugOpen((v) => !v)}
-            aria-expanded={debugOpen}
-            className="flex min-h-[36px] w-full items-center justify-between text-xs font-medium text-slate-600 transition-colors hover:text-slate-900"
-          >
-            <span className="flex items-center gap-2">
-              <Wrench className="h-3.5 w-3.5 text-slate-400" />
-              <span>Simulator Debug Tools</span>
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
-                debugOpen ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
-
-          {debugOpen && (
-            <div className="mt-2.5 space-y-3.5 border-t border-slate-100 pt-3 pb-1.5">
-              {/* Speed & DataField Layout Row */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
-                    Playback Speed
-                  </label>
-                  <div className="grid grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-                    {SPEED_OPTIONS.map((spd) => (
-                      <button
-                        key={spd}
-                        type="button"
-                        onClick={() => onChangeDebug({ speed: spd })}
-                        className={`rounded-md py-1.5 text-xs font-medium tabular-nums transition-colors ${
-                          debug.speed === spd
-                            ? 'bg-white text-slate-900 shadow-2xs ring-1 ring-slate-200'
-                            : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        {spd}x
-                      </button>
-                    ))}
-                  </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Playback Speed */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700">
+                  Playback Speed
+                </label>
+                <div className="grid grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                  {SPEED_OPTIONS.map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => onChangeDebug({ speed: spd })}
+                      className={`rounded-md py-1.5 text-xs font-medium tabular-nums transition-colors ${
+                        debug.speed === spd
+                          ? 'bg-white text-slate-900 shadow-2xs ring-1 ring-slate-200'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {spd}x
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div>
-                  <label
-                    htmlFor="sim-layout-select"
-                    className="mb-1.5 block text-[11px] font-medium text-slate-600"
-                  >
-                    DataField Layout
-                  </label>
-                  <select
-                    id="sim-layout-select"
-                    value={debug.layoutHeight}
-                    onChange={(e) => onChangeDebug({ layoutHeight: Number(e.target.value) })}
-                    className="h-[34px] w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700 focus:border-emerald-600 focus:bg-white focus:outline-none"
-                  >
-                    {activeProfile.layouts.map((layout) => (
-                      <option key={layout.height} value={layout.height}>
-                        {layout.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* DataField Layout */}
+              <div>
+                <label
+                  htmlFor="sim-layout-select"
+                  className="mb-1.5 block text-xs font-medium text-slate-700"
+                >
+                  DataField Layout
+                </label>
+                <select
+                  id="sim-layout-select"
+                  value={debug.layoutHeight}
+                  onChange={(e) => onChangeDebug({ layoutHeight: Number(e.target.value) })}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-700 focus:border-emerald-600 focus:bg-white focus:outline-none"
+                >
+                  {activeProfile.layouts.map((layout) => (
+                    <option key={layout.height} value={layout.height}>
+                      {layout.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Heading Trim */}
               <div>
-                <div className="mb-1 flex items-center justify-between">
+                <div className="mb-1.5 flex items-center justify-between">
                   <label
                     htmlFor="sim-heading-trim"
-                    className="text-[11px] font-medium text-slate-600"
+                    className="text-xs font-medium text-slate-700"
                   >
                     Heading Trim
                   </label>
-                  <span className="font-mono text-[11px] font-medium text-slate-700 tabular-nums">
+                  <span className="font-mono text-xs font-medium text-slate-800 tabular-nums">
                     {debug.headingOffsetDeg}°
                   </span>
                 </div>
@@ -509,14 +486,14 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
 
               {/* Distance to Start */}
               <div>
-                <div className="mb-1 flex items-center justify-between">
+                <div className="mb-1.5 flex items-center justify-between">
                   <label
                     htmlFor="sim-dist-start"
-                    className="text-[11px] font-medium text-slate-600"
+                    className="text-xs font-medium text-slate-700"
                   >
                     Distance to Start
                   </label>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     {DIST_TO_START_PRESETS.map((preset) => (
                       <button
                         key={preset.value}
@@ -548,29 +525,30 @@ export const WatchPreviewPanel: React.FC<WatchPreviewPanelProps> = ({
               </div>
 
               {/* Off-Course (+45m) Toggle */}
-              <div className="flex items-center justify-between pt-0.5">
-                <span className="text-[11px] font-medium text-slate-600">
-                  Simulate Off-Course Drift
-                </span>
+              <div className="border-t border-slate-100 pt-3">
                 <button
                   type="button"
                   onClick={() =>
                     onChangeDebug({ deviateMeters: debug.deviateMeters > 0 ? 0 : 45 })
                   }
-                  className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors ${
+                  className={`inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors ${
                     debug.deviateMeters > 0
                       ? 'bg-red-600 text-white hover:bg-red-700'
                       : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <AlertTriangle className="h-3.5 w-3.5" />
-                  <span>{debug.deviateMeters > 0 ? 'Off-Course (+45m) ON' : 'Off-Course (+45m)'}</span>
+                  <span>
+                    {debug.deviateMeters > 0
+                      ? 'Off-Course Drift (+45m) Active'
+                      : 'Simulate Off-Course (+45m)'}
+                  </span>
                 </button>
               </div>
             </div>
           )}
         </div>
-      </div>
+      </aside>
     </div>
   );
 };

@@ -61,7 +61,7 @@ export const DEFAULT_WATCH_SETTINGS: WatchSettings = {
 };
 
 export const DEFAULT_SIM_DEBUG: SimDebugOptions = {
-  speed: 1,
+  speed: 5,
   headingOffsetDeg: 0,
   distanceToStartMeters: 0,
   deviateMeters: 0,

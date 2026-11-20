@@ -40,12 +40,12 @@ export const StepExport: React.FC<StepExportProps> = ({
         )}
       </div>
 
-      {/* Primary Copy CTA */}
+      {/* Primary Copy CTA (desktop only; mobile uses the fixed bottom MobileStickyBar) */}
       <button
         type="button"
         onClick={onCopy}
         disabled={!hasCode}
-        className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all ${
+        className={`hidden h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all lg:flex ${
           copied
             ? 'bg-emerald-700 text-white shadow-xs'
             : hasCode
@@ -69,7 +69,7 @@ export const StepExport: React.FC<StepExportProps> = ({
       </button>
 
       {/* Concise 1-line Garmin Connect hint */}
-      <p className="mt-3 text-center text-xs text-slate-500">
+      <p className="text-left text-xs text-slate-500 lg:mt-3 lg:text-center">
         {isNoRoute ? (
           <>Leave <span className="font-medium text-slate-700">Route String</span> empty in Garmin Connect for Free Walk mode.</>
         ) : (

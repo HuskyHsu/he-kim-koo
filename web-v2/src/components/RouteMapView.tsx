@@ -9,7 +9,7 @@ interface RouteMapViewProps {
   direction: 0 | 1;
 }
 
-type BasemapId = 'street' | 'voyager' | 'light';
+type BasemapId = 'street' | 'voyager' | 'dark';
 
 function createBasemapStyle(
   initialBasemap: BasemapId,
@@ -50,12 +50,12 @@ function createBasemapStyle(
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     };
 
-    sources['carto-light'] = {
+    sources['carto-dark'] = {
       type: 'raster',
       tiles: [
-        `https://a.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}@2x.png?key=${encodedKey}`,
-        `https://b.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}@2x.png?key=${encodedKey}`,
-        `https://c.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}@2x.png?key=${encodedKey}`,
+        `https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png?key=${encodedKey}`,
+        `https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png?key=${encodedKey}`,
+        `https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png?key=${encodedKey}`,
       ],
       tileSize: 256,
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
@@ -73,13 +73,13 @@ function createBasemapStyle(
         },
       },
       {
-        id: 'basemap-light-layer',
+        id: 'basemap-dark-layer',
         type: 'raster',
-        source: 'carto-light',
+        source: 'carto-dark',
         minzoom: 0,
         maxzoom: 20,
         layout: {
-          visibility: initialBasemap === 'light' ? 'visible' : 'none',
+          visibility: initialBasemap === 'dark' ? 'visible' : 'none',
         },
       },
     );
@@ -92,7 +92,11 @@ function createBasemapStyle(
   };
 }
 
-function createArrowImage(): { width: number; height: number; data: Uint8Array } {
+function createArrowImage(basemap: BasemapId): {
+  width: number;
+  height: number;
+  data: Uint8Array;
+} {
   const size = 28;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -100,7 +104,7 @@ function createArrowImage(): { width: number; height: number; data: Uint8Array }
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.clearRect(0, 0, size, size);
-    // Crisp white halo + emerald chevron pointing up (north = 0 deg)
+    // Crisp directional chevron pointing up (north = 0 deg)
     ctx.translate(size / 2, size / 2);
     ctx.beginPath();
     ctx.moveTo(0, -8);
@@ -108,8 +112,16 @@ function createArrowImage(): { width: number; height: number; data: Uint8Array }
     ctx.lineTo(0, 2);
     ctx.lineTo(-7, 5);
     ctx.closePath();
-    ctx.fillStyle = '#059669';
-    ctx.strokeStyle = '#FFFFFF';
+    if (basemap === 'dark') {
+      ctx.fillStyle = '#E4FF9E';
+      ctx.strokeStyle = '#090D16';
+    } else if (basemap === 'voyager') {
+      ctx.fillStyle = '#EA580C';
+      ctx.strokeStyle = '#FFFFFF';
+    } else {
+      ctx.fillStyle = '#2563EB';
+      ctx.strokeStyle = '#FFFFFF';
+    }
     ctx.lineWidth = 2.4;
     ctx.lineJoin = 'round';
     ctx.stroke();
@@ -123,12 +135,82 @@ function createArrowImage(): { width: number; height: number; data: Uint8Array }
   };
 }
 
+function applyTrackTheme(
+  map: maplibregl.Map,
+  basemap: BasemapId,
+  compareRaw: boolean,
+): void {
+  const isDark = basemap === 'dark';
+  const trackColor =
+    basemap === 'dark' ? '#BCFB3D' : basemap === 'voyager' ? '#EA580C' : '#2563EB';
+  const arrowImage = `route-arrow-${basemap}`;
+
+  if (map.getLayer('raw-track-layer')) {
+    map.setLayoutProperty('raw-track-layer', 'visibility', compareRaw ? 'visible' : 'none');
+    map.setPaintProperty('raw-track-layer', 'line-color', isDark ? '#F8FAFC' : '#0F172A');
+    map.setPaintProperty('raw-track-layer', 'line-opacity', isDark ? 0.88 : 0.85);
+  }
+
+  if (map.getLayer('simp-track-glow')) {
+    map.setLayoutProperty('simp-track-glow', 'visibility', isDark ? 'visible' : 'none');
+    map.setPaintProperty('simp-track-glow', 'line-opacity', compareRaw ? 0.2 : 0.34);
+  }
+
+  if (map.getLayer('simp-track-casing')) {
+    map.setPaintProperty('simp-track-casing', 'line-color', isDark ? '#84CC16' : '#FFFFFF');
+    map.setPaintProperty('simp-track-casing', 'line-width', isDark ? 7.5 : 6.8);
+    map.setPaintProperty('simp-track-casing', 'line-blur', isDark ? 3 : 0);
+    map.setPaintProperty(
+      'simp-track-casing',
+      'line-opacity',
+      isDark ? (compareRaw ? 0.32 : 0.52) : compareRaw ? 0.72 : 0.92,
+    );
+  }
+
+  if (map.getLayer('simp-track-layer')) {
+    map.setPaintProperty('simp-track-layer', 'line-color', trackColor);
+    map.setPaintProperty('simp-track-layer', 'line-width', isDark ? 3.4 : 4);
+    map.setPaintProperty(
+      'simp-track-layer',
+      'line-opacity',
+      compareRaw ? 0.55 : isDark ? 0.98 : 0.96,
+    );
+  }
+
+  if (map.getLayer('direction-arrows-layer')) {
+    map.setLayoutProperty('direction-arrows-layer', 'icon-image', arrowImage);
+  }
+
+  if (map.getLayer('start-point-glow')) {
+    map.setLayoutProperty('start-point-glow', 'visibility', isDark ? 'visible' : 'none');
+  }
+
+  if (map.getLayer('start-point-layer')) {
+    map.setPaintProperty('start-point-layer', 'circle-color', isDark ? '#BCFB3D' : '#059669');
+    map.setPaintProperty(
+      'start-point-layer',
+      'circle-stroke-color',
+      isDark ? '#0B1120' : '#FFFFFF',
+    );
+  }
+
+  if (map.getLayer('end-point-layer')) {
+    map.setPaintProperty('end-point-layer', 'circle-color', isDark ? '#FB7185' : '#DC2626');
+    map.setPaintProperty(
+      'end-point-layer',
+      'circle-stroke-color',
+      isDark ? '#0B1120' : '#FFFFFF',
+    );
+  }
+}
+
 export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) => {
   const cartoApiKey = import.meta.env.VITE_CARTO_API_KEY?.trim() || undefined;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const lastFittedRouteIdRef = useRef<string | null>(null);
   const [basemap, setBasemap] = useState<BasemapId>('street');
+  const [compareRaw, setCompareRaw] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
   const hasTrack = Boolean(route && !route.isNoRoute && route.simpPoints.length > 0);
@@ -161,8 +243,11 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
       const simp = route && !route.isNoRoute ? route.simpPoints : [];
       const geo = buildRouteGeoJson(orig, simp, direction);
 
-      if (!map.hasImage('route-arrow')) {
-        map.addImage('route-arrow', createArrowImage(), { pixelRatio: 2 });
+      for (const id of ['street', 'voyager', 'dark'] as const) {
+        const imgId = `route-arrow-${id}`;
+        if (!map.hasImage(imgId)) {
+          map.addImage(imgId, createArrowImage(id), { pixelRatio: 2 });
+        }
       }
 
       type GeoJsonData = Parameters<maplibregl.GeoJSONSource['setData']>[0];
@@ -181,17 +266,21 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
       upsertSource('start-point', geo.startPoint as unknown as GeoJsonData);
       upsertSource('end-point', geo.endPoint as unknown as GeoJsonData);
 
-      if (!map.getLayer('raw-track-layer')) {
+      if (!map.getLayer('simp-track-glow')) {
         map.addLayer({
-          id: 'raw-track-layer',
+          id: 'simp-track-glow',
           type: 'line',
-          source: 'raw-track',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          source: 'simp-track',
+          layout: {
+            'line-cap': 'round',
+            'line-join': 'round',
+            visibility: 'none',
+          },
           paint: {
-            'line-color': '#64748B',
-            'line-width': 2,
-            'line-dasharray': [2.5, 2.5],
-            'line-opacity': 0.55,
+            'line-color': '#BCFB3D',
+            'line-width': 15,
+            'line-blur': 9,
+            'line-opacity': 0.34,
           },
         });
       }
@@ -204,8 +293,8 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: {
             'line-color': '#FFFFFF',
-            'line-width': 6.5,
-            'line-opacity': 0.9,
+            'line-width': 6.8,
+            'line-opacity': 0.92,
           },
         });
       }
@@ -217,9 +306,29 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
           source: 'simp-track',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: {
-            'line-color': '#059669',
-            'line-width': 3.8,
+            'line-color': '#2563EB',
+            'line-width': 4,
             'line-opacity': 0.96,
+          },
+        });
+      }
+
+      // Drawn ABOVE simp-track so differences are clearly visible when Compare Raw is toggled on
+      if (!map.getLayer('raw-track-layer')) {
+        map.addLayer({
+          id: 'raw-track-layer',
+          type: 'line',
+          source: 'raw-track',
+          layout: {
+            'line-cap': 'round',
+            'line-join': 'round',
+            visibility: 'none',
+          },
+          paint: {
+            'line-color': '#0F172A',
+            'line-width': 2.2,
+            'line-dasharray': [2.5, 2.5],
+            'line-opacity': 0.85,
           },
         });
       }
@@ -230,7 +339,7 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
           type: 'symbol',
           source: 'direction-arrows',
           layout: {
-            'icon-image': 'route-arrow',
+            'icon-image': 'route-arrow-street',
             'icon-size': 1,
             'icon-rotate': ['get', 'bearing'],
             'icon-rotation-alignment': 'map',
@@ -254,6 +363,21 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
         });
       }
 
+      if (!map.getLayer('start-point-glow')) {
+        map.addLayer({
+          id: 'start-point-glow',
+          type: 'circle',
+          source: 'start-point',
+          layout: { visibility: 'none' },
+          paint: {
+            'circle-radius': 15,
+            'circle-color': '#BCFB3D',
+            'circle-blur': 0.85,
+            'circle-opacity': 0.48,
+          },
+        });
+      }
+
       if (!map.getLayer('start-point-layer')) {
         map.addLayer({
           id: 'start-point-layer',
@@ -267,8 +391,10 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
           },
         });
       }
+
+      applyTrackTheme(map, basemap, compareRaw);
     },
-    [route, direction],
+    [route, direction, basemap, compareRaw],
   );
 
   // Initialize MapLibre once
@@ -317,7 +443,7 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
     const layerMap: Record<BasemapId, string> = {
       street: 'basemap-street-layer',
       voyager: 'basemap-voyager-layer',
-      light: 'basemap-light-layer',
+      dark: 'basemap-dark-layer',
     };
 
     for (const [id, layerId] of Object.entries(layerMap) as [BasemapId, string][]) {
@@ -325,7 +451,9 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
         map.setLayoutProperty(layerId, 'visibility', basemap === id ? 'visible' : 'none');
       }
     }
-  }, [basemap, mapReady]);
+
+    applyTrackTheme(map, basemap, compareRaw);
+  }, [basemap, compareRaw, mapReady]);
 
   // Update route GeoJSON whenever route or direction changes
   useEffect(() => {
@@ -352,7 +480,7 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
             [
               { id: 'street', label: 'OSM' },
               { id: 'voyager', label: 'Voyager' },
-              { id: 'light', label: 'Light' },
+              { id: 'dark', label: 'Dark Matter' },
             ] as const
           ).map((option) => (
             <button
@@ -406,25 +534,78 @@ export const RouteMapView: React.FC<RouteMapViewProps> = ({ route, direction }) 
         )}
       </div>
 
-      {/* Bottom-Left: Minimal Legend */}
+      {/* Bottom-Left: Minimal Legend & Compare Raw Toggle */}
       {hasTrack && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-xl border border-slate-200/80 bg-white/92 px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-xs backdrop-blur-xs">
+        <div
+          className={`absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-3 py-1.5 text-[11px] font-medium shadow-xs backdrop-blur-xs transition-colors ${
+            basemap === 'dark'
+              ? 'border-slate-700/80 bg-slate-900/85 text-slate-200'
+              : 'border-slate-200/80 bg-white/92 text-slate-600'
+          }`}
+        >
           <span className="flex items-center gap-1.5">
-            <span className="h-1 w-3.5 rounded-full bg-emerald-600" />
+            <span
+              className={`h-1 w-3.5 rounded-full ${
+                basemap === 'dark'
+                  ? 'bg-[#BCFB3D] shadow-[0_0_8px_#BCFB3D]'
+                  : basemap === 'voyager'
+                    ? 'bg-[#EA580C]'
+                    : 'bg-[#2563EB]'
+              }`}
+            />
             Watch Route
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-3.5 border-t-2 border-dashed border-slate-400" />
-            Raw GPX
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-600 ring-1 ring-slate-200" />
+            <span
+              className={`h-2.5 w-2.5 rounded-full border-2 ${
+                basemap === 'dark'
+                  ? 'border-slate-950 bg-[#BCFB3D] shadow-[0_0_6px_#BCFB3D]'
+                  : 'border-white bg-emerald-600 ring-1 ring-slate-200'
+              }`}
+            />
             Start
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full border-2 border-white bg-red-600 ring-1 ring-slate-200" />
+            <span
+              className={`h-2.5 w-2.5 rounded-full border-2 ${
+                basemap === 'dark'
+                  ? 'border-slate-950 bg-rose-400'
+                  : 'border-white bg-red-600 ring-1 ring-slate-200'
+              }`}
+            />
             End
           </span>
+
+          <span
+            aria-hidden="true"
+            className={`h-3.5 w-px ${basemap === 'dark' ? 'bg-slate-700' : 'bg-slate-200'}`}
+          />
+
+          <button
+            type="button"
+            onClick={() => setCompareRaw((v) => !v)}
+            aria-pressed={compareRaw}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              compareRaw
+                ? basemap === 'dark'
+                  ? 'bg-white/15 text-white ring-1 ring-white/25'
+                  : 'bg-slate-900 text-white'
+                : basemap === 'dark'
+                  ? 'text-slate-300 hover:bg-white/10 hover:text-white'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <span
+              className={`h-0.5 w-3 border-t-2 border-dashed ${
+                compareRaw
+                  ? 'border-white'
+                  : basemap === 'dark'
+                    ? 'border-slate-400'
+                    : 'border-slate-500'
+              }`}
+            />
+            <span>Compare Raw</span>
+          </button>
         </div>
       )}
 
